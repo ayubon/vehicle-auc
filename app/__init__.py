@@ -4,6 +4,7 @@ import logging
 from flask import Flask, request, g
 from .extensions import db, migrate, login_manager, socketio, csrf, metrics, redis_client
 from .config import config
+from .custom_metrics import init_app_info
 
 
 def create_app(config_name=None):
@@ -28,6 +29,12 @@ def create_app(config_name=None):
     
     # Register request hooks for observability
     register_request_hooks(app)
+    
+    # Initialize custom metrics
+    init_app_info(
+        version='0.1.0',
+        environment=config_name
+    )
     
     return app
 

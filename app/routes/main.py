@@ -104,3 +104,41 @@ def debug_log_test():
         'status': 'ok',
         'message': 'Check server logs for structured JSON output'
     })
+
+
+@main_bp.route('/debug/metrics-test')
+def debug_metrics_test():
+    """Debug endpoint to test custom Prometheus metrics."""
+    from ..instrumentation import (
+        track_bid, track_user_registration, track_order,
+        track_redis_operation, set_active_auctions
+    )
+    
+    # Simulate some business events
+    track_bid(auction_type='timed', amount=15000, result='accepted')
+    track_bid(auction_type='timed', amount=14500, result='outbid')
+    track_user_registration(role='buyer')
+    track_order(status='created', value=16500)
+    set_active_auctions(42)
+    
+    # Track a Redis operation
+    with track_redis_operation('set'):
+        redis_client.set('metrics_test', 'value', ex=60)
+    
+    with track_redis_operation('get'):
+        redis_client.get('metrics_test')
+    
+    return jsonify({
+        'status': 'ok',
+        'message': 'Custom metrics recorded. Check /metrics endpoint.',
+        'metrics_fired': [
+            'auction_bids_total',
+            'auction_bid_amount_dollars',
+            'user_registrations_total',
+            'orders_total',
+            'order_value_dollars',
+            'auction_active_count',
+            'redis_operation_duration_seconds',
+            'redis_operations_total'
+        ]
+    })
