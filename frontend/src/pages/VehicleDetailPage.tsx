@@ -2,6 +2,9 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { vehiclesApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Car, MapPin, Gauge, FileText, Key, ArrowLeft, Clock } from 'lucide-react';
 
 export default function VehicleDetailPage() {
@@ -16,8 +19,22 @@ export default function VehicleDetailPage() {
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <Skeleton className="h-6 w-40 mb-6" />
+        <div className="grid lg:grid-cols-2 gap-8">
+          <div>
+            <Skeleton className="aspect-video w-full rounded-lg mb-4" />
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="aspect-video rounded" />
+              ))}
+            </div>
+          </div>
+          <div>
+            <Skeleton className="h-10 w-3/4 mb-2" />
+            <Skeleton className="h-6 w-1/2 mb-6" />
+            <Skeleton className="h-32 w-full mb-6" />
+            <Skeleton className="h-24 w-full" />
+          </div>
         </div>
       </div>
     );
@@ -85,39 +102,43 @@ export default function VehicleDetailPage() {
 
           {/* Auction Info */}
           {auction && (
-            <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold">Current Bid</span>
-                <span className="text-2xl font-bold">${auction.current_bid?.toLocaleString() || 0}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>{auction.bid_count || 0} bids</span>
-                <span className="flex items-center gap-1">
-                  <Clock className="h-4 w-4" />
-                  {auction.time_remaining > 0 
-                    ? `${Math.floor(auction.time_remaining / 3600)}h ${Math.floor((auction.time_remaining % 3600) / 60)}m left`
-                    : 'Ended'}
-                </span>
-              </div>
-              <Button className="w-full mt-4">Place Bid</Button>
-            </div>
+            <Card className="mb-6 border-primary/20 bg-primary/5">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold">Current Bid</span>
+                  <span className="text-2xl font-bold">${auction.current_bid?.toLocaleString() || 0}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <Badge variant="secondary">{auction.bid_count || 0} bids</Badge>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-4 w-4" />
+                    {auction.time_remaining > 0 
+                      ? `${Math.floor(auction.time_remaining / 3600)}h ${Math.floor((auction.time_remaining % 3600) / 60)}m left`
+                      : 'Ended'}
+                  </span>
+                </div>
+                <Button className="w-full mt-4">Place Bid</Button>
+              </CardContent>
+            </Card>
           )}
 
           {/* Price */}
-          <div className="border rounded-lg p-4 mb-6">
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Starting Price</span>
-              <span className="text-2xl font-bold">${vehicle.starting_price?.toLocaleString()}</span>
-            </div>
-            {vehicle.buy_now_price && (
-              <div className="flex justify-between items-center mt-2 pt-2 border-t">
-                <span className="text-muted-foreground">Buy Now Price</span>
-                <span className="text-xl font-semibold text-green-600">
-                  ${vehicle.buy_now_price.toLocaleString()}
-                </span>
+          <Card className="mb-6">
+            <CardContent className="p-4">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Starting Price</span>
+                <span className="text-2xl font-bold">${vehicle.starting_price?.toLocaleString()}</span>
               </div>
-            )}
-          </div>
+              {vehicle.buy_now_price && (
+                <div className="flex justify-between items-center mt-2 pt-2 border-t">
+                  <span className="text-muted-foreground">Buy Now Price</span>
+                  <Badge variant="outline" className="text-green-600 text-lg px-3 py-1">
+                    ${vehicle.buy_now_price.toLocaleString()}
+                  </Badge>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Quick Info */}
           <div className="grid grid-cols-2 gap-4 mb-6">
@@ -140,25 +161,29 @@ export default function VehicleDetailPage() {
           </div>
 
           {/* Specs */}
-          <div className="border rounded-lg p-4">
-            <h3 className="font-semibold mb-3">Specifications</h3>
-            <div className="grid grid-cols-2 gap-y-2 text-sm">
-              <span className="text-muted-foreground">VIN</span>
-              <span className="font-mono">{vehicle.vin}</span>
-              <span className="text-muted-foreground">Condition</span>
-              <span className="capitalize">{vehicle.condition?.replace('_', ' ')}</span>
-              <span className="text-muted-foreground">Engine</span>
-              <span>{vehicle.engine || 'N/A'}</span>
-              <span className="text-muted-foreground">Transmission</span>
-              <span>{vehicle.transmission || 'N/A'}</span>
-              <span className="text-muted-foreground">Drivetrain</span>
-              <span>{vehicle.drivetrain || 'N/A'}</span>
-              <span className="text-muted-foreground">Exterior</span>
-              <span>{vehicle.exterior_color || 'N/A'}</span>
-              <span className="text-muted-foreground">Interior</span>
-              <span>{vehicle.interior_color || 'N/A'}</span>
-            </div>
-          </div>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Specifications</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-y-2 text-sm">
+                <span className="text-muted-foreground">VIN</span>
+                <span className="font-mono">{vehicle.vin}</span>
+                <span className="text-muted-foreground">Condition</span>
+                <Badge variant="outline" className="w-fit capitalize">{vehicle.condition?.replace('_', ' ')}</Badge>
+                <span className="text-muted-foreground">Engine</span>
+                <span>{vehicle.engine || 'N/A'}</span>
+                <span className="text-muted-foreground">Transmission</span>
+                <span>{vehicle.transmission || 'N/A'}</span>
+                <span className="text-muted-foreground">Drivetrain</span>
+                <span>{vehicle.drivetrain || 'N/A'}</span>
+                <span className="text-muted-foreground">Exterior</span>
+                <span>{vehicle.exterior_color || 'N/A'}</span>
+                <span className="text-muted-foreground">Interior</span>
+                <span>{vehicle.interior_color || 'N/A'}</span>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Description */}
           {vehicle.description && (
