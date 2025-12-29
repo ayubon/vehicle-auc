@@ -153,7 +153,7 @@ def get_auction_bids(auction_id):
 
 
 @api_bp.route('/decode-vin', methods=['POST'])
-@login_required
+@jwt_required()
 def decode_vin():
     """API endpoint to decode a VIN via ClearVIN."""
     data = request.get_json()

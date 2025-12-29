@@ -10,7 +10,7 @@ class TestUserModel:
     def test_user_creation(self, test_user):
         """Test user can be created."""
         assert test_user.id is not None
-        assert test_user.email == 'testuser@example.com'
+        assert 'testuser' in test_user.email
         assert test_user.first_name == 'Test'
         assert test_user.last_name == 'User'
     
@@ -49,7 +49,7 @@ class TestVehicleModel:
     def test_vehicle_creation(self, test_vehicle):
         """Test vehicle can be created."""
         assert test_vehicle.id is not None
-        assert test_vehicle.vin == '1HGBH41JXMN109186'
+        assert test_vehicle.vin.startswith('1HGBH41JX')
         assert test_vehicle.year == 2021
         assert test_vehicle.make == 'Honda'
         assert test_vehicle.model == 'Accord'

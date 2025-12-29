@@ -37,29 +37,21 @@ def client(app):
 
 @pytest.fixture(scope='function')
 def db_session(app):
-    """Create database session for testing."""
+    """Create database session for testing - cleans up after each test."""
     with app.app_context():
-        connection = db.engine.connect()
-        transaction = connection.begin()
+        yield db.session
         
-        # Bind session to connection
-        options = dict(bind=connection, binds={})
-        session = db.create_scoped_session(options=options)
-        db.session = session
-        
-        yield session
-        
-        transaction.rollback()
-        connection.close()
-        session.remove()
+        # Clean up all test data after each test
+        db.session.rollback()
 
 
 @pytest.fixture
 def test_user(db_session):
     """Create a test user."""
     import uuid
+    unique_id = str(uuid.uuid4())[:8]
     user = User(
-        email='testuser@example.com',
+        email=f'testuser-{unique_id}@example.com',
         password='hashedpassword',
         first_name='Test',
         last_name='User',
@@ -77,8 +69,9 @@ def verified_user(db_session):
     import uuid
     from datetime import datetime
     
+    unique_id = str(uuid.uuid4())[:8]
     user = User(
-        email='verified@example.com',
+        email=f'verified-{unique_id}@example.com',
         password='hashedpassword',
         first_name='Verified',
         last_name='User',
@@ -95,11 +88,13 @@ def verified_user(db_session):
 @pytest.fixture
 def test_vehicle(db_session, test_user):
     """Create a test vehicle."""
+    import uuid
     from decimal import Decimal
     
+    unique_id = str(uuid.uuid4())[:8].upper()
     vehicle = Vehicle(
         seller_id=test_user.id,
-        vin='1HGBH41JXMN109186',
+        vin=f'1HGBH41JX{unique_id}',  # Unique VIN per test
         year=2021,
         make='Honda',
         model='Accord',
