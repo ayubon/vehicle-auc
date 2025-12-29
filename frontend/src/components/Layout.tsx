@@ -1,10 +1,16 @@
-import { Outlet, Link } from 'react-router-dom';
-import { Car, User, LogIn } from 'lucide-react';
+import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Car, User, LogIn, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuthStore } from '@/store/auth';
 
 export default function Layout() {
-  // TODO: Replace with actual auth state
-  const isAuthenticated = false;
+  const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -27,12 +33,18 @@ export default function Layout() {
 
           <div className="flex items-center gap-2">
             {isAuthenticated ? (
-              <Button variant="ghost" asChild>
-                <Link to="/dashboard">
-                  <User className="h-4 w-4 mr-2" />
-                  Dashboard
-                </Link>
-              </Button>
+              <>
+                <Button variant="ghost" asChild>
+                  <Link to="/dashboard">
+                    <User className="h-4 w-4 mr-2" />
+                    {user?.first_name || 'Dashboard'}
+                  </Link>
+                </Button>
+                <Button variant="outline" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Log Out
+                </Button>
+              </>
             ) : (
               <>
                 <Button variant="ghost" asChild>
