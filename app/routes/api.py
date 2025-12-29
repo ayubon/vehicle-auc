@@ -6,6 +6,21 @@ from ..models import Vehicle, Auction
 from ..extensions import db, csrf
 
 
+@api_bp.route('/', strict_slashes=False)
+def api_index():
+    """API root endpoint."""
+    return jsonify({
+        'name': 'Vehicle Auction API',
+        'version': '0.1.0',
+        'endpoints': {
+            'vehicles': '/api/vehicles',
+            'auctions': '/api/auctions',
+            'auth': '/api/auth',
+            'health': '/health',
+        }
+    })
+
+
 @api_bp.route('/vehicles')
 def list_vehicles():
     """API endpoint to list vehicles with filters."""
