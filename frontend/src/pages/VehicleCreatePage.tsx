@@ -35,12 +35,17 @@ export default function VehicleCreatePage() {
     setValue,
     watch,
     formState: { errors },
-  } = useForm<VehicleFormData>({
+  } = useForm({
     resolver: zodResolver(vehicleFormSchema),
     defaultValues: {
-      condition: 'runs_drives',
-      title_type: 'clean',
+      vin: '',
+      year: undefined as unknown as number,
+      make: '',
+      model: '',
+      condition: 'runs_drives' as const,
+      title_type: 'clean' as const,
       has_keys: true,
+      starting_price: undefined as unknown as number,
     },
   });
 
@@ -91,10 +96,10 @@ export default function VehicleCreatePage() {
     }
   };
 
-  const onSubmit = async (data: VehicleFormData) => {
+  const onSubmit = async (data: unknown) => {
     if (!vehicleId) {
       // First create the vehicle
-      createMutation.mutate(data);
+      createMutation.mutate(data as VehicleFormData);
     } else {
       // Submit for review
       submitMutation.mutate(vehicleId);
