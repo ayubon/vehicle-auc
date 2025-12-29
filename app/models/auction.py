@@ -1,6 +1,10 @@
-"""Auction and bidding models."""
+"""Auction and bidding models.
+
+SICP: Data abstraction - Auction knows its state and how to represent itself.
+"""
 from datetime import datetime
 from ..extensions import db
+from ..constants import AuctionStatus
 
 
 class Auction(db.Model):
@@ -45,7 +49,7 @@ class Auction(db.Model):
     def is_active(self):
         """Check if auction is currently active."""
         now = datetime.utcnow()
-        return self.status == 'active' and self.starts_at <= now <= self.ends_at
+        return self.status == AuctionStatus.ACTIVE.value and self.starts_at <= now <= self.ends_at
     
     @property
     def time_remaining(self):
@@ -59,6 +63,31 @@ class Auction(db.Model):
     def highest_bid(self):
         """Get the highest bid."""
         return self.bids.first()
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # SICP: Message passing - ask the object for its representation
+    # ─────────────────────────────────────────────────────────────────────────
+    
+    def to_summary_dict(self) -> dict:
+        """Serialize for embedding in vehicle detail."""
+        return {
+            'id': self.id,
+            'status': self.status,
+            'current_bid': float(self.current_bid) if self.current_bid else 0,
+            'bid_count': self.bid_count,
+            'ends_at': self.ends_at.isoformat() if self.ends_at else None,
+            'time_remaining': self.time_remaining,
+        }
+    
+    def to_detail_dict(self) -> dict:
+        """Serialize for auction detail view."""
+        return {
+            **self.to_summary_dict(),
+            'auction_type': self.auction_type,
+            'starts_at': self.starts_at.isoformat() if self.starts_at else None,
+            'extended_count': self.extended_count,
+            'vehicle': self.vehicle.to_summary_dict() if self.vehicle else None,
+        }
     
     def __repr__(self):
         return f'<Auction {self.id} for Vehicle {self.vehicle_id}>'
@@ -87,6 +116,16 @@ class Bid(db.Model):
     __table_args__ = (
         db.Index('ix_bids_auction_amount', 'auction_id', 'amount'),
     )
+    
+    def to_dict(self) -> dict:
+        """Serialize bid."""
+        return {
+            'id': self.id,
+            'amount': float(self.amount),
+            'user_display': f'user***{str(self.user_id)[-2:]}',
+            'is_auto_bid': self.is_auto_bid,
+            'created_at': self.created_at.isoformat(),
+        }
     
     def __repr__(self):
         return f'<Bid ${self.amount} by User {self.user_id}>'

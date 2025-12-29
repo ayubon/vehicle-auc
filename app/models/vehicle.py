@@ -1,10 +1,15 @@
-"""Vehicle models."""
+"""Vehicle models.
+
+SICP: Data abstraction - Vehicle knows how to represent itself.
+Ask the object for its representation, don't reach into its internals.
+"""
 from datetime import datetime
 from ..extensions import db
+from ..constants import VehicleStatus
 
 
 class Vehicle(db.Model):
-    """Vehicle model."""
+    """Vehicle model - the core domain object for vehicle listings."""
     __tablename__ = 'vehicles'
     
     id = db.Column(db.BigInteger, primary_key=True)
@@ -13,7 +18,7 @@ class Vehicle(db.Model):
     # Status
     status = db.Column(
         db.Enum('draft', 'pending_review', 'active', 'sold', 'archived', name='vehicle_status'),
-        default='draft',
+        default=VehicleStatus.DRAFT.value,
         nullable=False,
         index=True
     )
@@ -81,6 +86,63 @@ class Vehicle(db.Model):
         """Get display title for vehicle."""
         return f'{self.year} {self.make} {self.model}'
     
+    # ─────────────────────────────────────────────────────────────────────────
+    # SICP: Message passing - ask the object for its representation
+    # ─────────────────────────────────────────────────────────────────────────
+    
+    def to_summary_dict(self) -> dict:
+        """Serialize for list views. Minimal data for browsing."""
+        return {
+            'id': self.id,
+            'vin': self.vin,
+            'year': self.year,
+            'make': self.make,
+            'model': self.model,
+            'trim': self.trim,
+            'mileage': self.mileage,
+            'condition': self.condition,
+            'title_type': self.title_type,
+            'starting_price': float(self.starting_price) if self.starting_price else None,
+            'buy_now_price': float(self.buy_now_price) if self.buy_now_price else None,
+            'location_city': self.location_city,
+            'location_state': self.location_state,
+            'primary_image_url': self.primary_image.url if self.primary_image else None,
+        }
+    
+    def to_detail_dict(self) -> dict:
+        """Serialize for detail views. Full vehicle data."""
+        return {
+            'id': self.id,
+            'vin': self.vin,
+            'year': self.year,
+            'make': self.make,
+            'model': self.model,
+            'trim': self.trim,
+            'body_type': self.body_type,
+            'engine': self.engine,
+            'transmission': self.transmission,
+            'drivetrain': self.drivetrain,
+            'exterior_color': self.exterior_color,
+            'interior_color': self.interior_color,
+            'mileage': self.mileage,
+            'condition': self.condition,
+            'title_type': self.title_type,
+            'title_state': self.title_state,
+            'has_keys': self.has_keys,
+            'description': self.description,
+            'starting_price': float(self.starting_price) if self.starting_price else None,
+            'reserve_price': float(self.reserve_price) if self.reserve_price else None,
+            'buy_now_price': float(self.buy_now_price) if self.buy_now_price else None,
+            'location': {
+                'address': self.location_address,
+                'city': self.location_city,
+                'state': self.location_state,
+                'zip': self.location_zip,
+            },
+            'images': [img.to_dict() for img in self.images.order_by('sort_order').all()],
+            'auction': self.auction.to_summary_dict() if self.auction else None,
+        }
+    
     def __repr__(self):
         return f'<Vehicle {self.vin}>'
 
@@ -101,6 +163,14 @@ class VehicleImage(db.Model):
     
     # Relationships
     vehicle = db.relationship('Vehicle', back_populates='images')
+    
+    def to_dict(self) -> dict:
+        """Serialize image."""
+        return {
+            'id': self.id,
+            'url': self.url,
+            'is_primary': self.is_primary,
+        }
     
     def __repr__(self):
         return f'<VehicleImage {self.id}>'

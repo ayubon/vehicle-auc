@@ -1,75 +1,15 @@
-"""Vehicle CRUD API endpoints."""
+"""Vehicle CRUD API endpoints.
+
+SICP: Routes are thin - they delegate serialization to models.
+This keeps routes focused on HTTP concerns (request/response, auth, validation).
+"""
 from decimal import Decimal
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required, current_user
 from . import api_bp
 from ...models import Vehicle
 from ...extensions import db
-
-
-def serialize_vehicle_summary(v: Vehicle) -> dict:
-    """Serialize vehicle for list view."""
-    return {
-        'id': v.id,
-        'vin': v.vin,
-        'year': v.year,
-        'make': v.make,
-        'model': v.model,
-        'trim': v.trim,
-        'mileage': v.mileage,
-        'condition': v.condition,
-        'title_type': v.title_type,
-        'starting_price': float(v.starting_price) if v.starting_price else None,
-        'buy_now_price': float(v.buy_now_price) if v.buy_now_price else None,
-        'location_city': v.location_city,
-        'location_state': v.location_state,
-        'primary_image_url': v.primary_image.url if v.primary_image else None,
-    }
-
-
-def serialize_vehicle_detail(v: Vehicle) -> dict:
-    """Serialize vehicle for detail view."""
-    return {
-        'id': v.id,
-        'vin': v.vin,
-        'year': v.year,
-        'make': v.make,
-        'model': v.model,
-        'trim': v.trim,
-        'body_type': v.body_type,
-        'engine': v.engine,
-        'transmission': v.transmission,
-        'drivetrain': v.drivetrain,
-        'exterior_color': v.exterior_color,
-        'interior_color': v.interior_color,
-        'mileage': v.mileage,
-        'condition': v.condition,
-        'title_type': v.title_type,
-        'title_state': v.title_state,
-        'has_keys': v.has_keys,
-        'description': v.description,
-        'starting_price': float(v.starting_price) if v.starting_price else None,
-        'reserve_price': float(v.reserve_price) if v.reserve_price else None,
-        'buy_now_price': float(v.buy_now_price) if v.buy_now_price else None,
-        'location': {
-            'address': v.location_address,
-            'city': v.location_city,
-            'state': v.location_state,
-            'zip': v.location_zip,
-        },
-        'images': [{
-            'url': img.url,
-            'is_primary': img.is_primary,
-        } for img in v.images.order_by('sort_order').all()],
-        'auction': {
-            'id': v.auction.id,
-            'status': v.auction.status,
-            'current_bid': float(v.auction.current_bid) if v.auction.current_bid else 0,
-            'bid_count': v.auction.bid_count,
-            'ends_at': v.auction.ends_at.isoformat() if v.auction.ends_at else None,
-            'time_remaining': v.auction.time_remaining,
-        } if v.auction else None,
-    }
+from ...constants import VehicleStatus
 
 
 @api_bp.route('/vehicles')
@@ -78,7 +18,7 @@ def list_vehicles():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     
-    query = Vehicle.query.filter_by(status='active')
+    query = Vehicle.query.filter_by(status=VehicleStatus.ACTIVE.value)
     
     # Apply filters
     if make := request.args.get('make'):
@@ -97,7 +37,7 @@ def list_vehicles():
     )
     
     return jsonify({
-        'vehicles': [serialize_vehicle_summary(v) for v in pagination.items],
+        'vehicles': [v.to_summary_dict() for v in pagination.items],
         'total': pagination.total,
         'pages': pagination.pages,
         'current_page': pagination.page,
@@ -108,7 +48,7 @@ def list_vehicles():
 def get_vehicle(vehicle_id):
     """Get vehicle details."""
     vehicle = Vehicle.query.get_or_404(vehicle_id)
-    return jsonify(serialize_vehicle_detail(vehicle))
+    return jsonify(vehicle.to_detail_dict())
 
 
 @api_bp.route('/vehicles', methods=['POST'])
@@ -154,7 +94,7 @@ def create_vehicle():
         location_city=data.get('location_city'),
         location_state=data.get('location_state'),
         location_zip=data.get('location_zip'),
-        status='draft',
+        status=VehicleStatus.DRAFT.value,
     )
     
     db.session.add(vehicle)
@@ -176,7 +116,7 @@ def update_vehicle(vehicle_id):
         return jsonify({'error': 'Vehicle not found'}), 404
     if vehicle.seller_id != current_user.id:
         return jsonify({'error': 'Not authorized to edit this vehicle'}), 403
-    if vehicle.status == 'sold':
+    if vehicle.status == VehicleStatus.SOLD.value:
         return jsonify({'error': 'Cannot edit sold vehicles'}), 400
     
     data = request.get_json()
@@ -213,9 +153,10 @@ def delete_vehicle(vehicle_id):
         return jsonify({'error': 'Vehicle not found'}), 404
     if vehicle.seller_id != current_user.id:
         return jsonify({'error': 'Not authorized to delete this vehicle'}), 403
-    if vehicle.status == 'sold':
+    if vehicle.status == VehicleStatus.SOLD.value:
         return jsonify({'error': 'Cannot delete sold vehicles'}), 400
-    if vehicle.auction and vehicle.auction.status == 'active':
+    from ...constants import AuctionStatus
+    if vehicle.auction and vehicle.auction.status == AuctionStatus.ACTIVE.value:
         return jsonify({'error': 'Cannot delete vehicle with active auction'}), 400
     
     db.session.delete(vehicle)
@@ -233,12 +174,12 @@ def submit_vehicle(vehicle_id):
         return jsonify({'error': 'Vehicle not found'}), 404
     if vehicle.seller_id != current_user.id:
         return jsonify({'error': 'Not authorized'}), 403
-    if vehicle.status != 'draft':
+    if vehicle.status != VehicleStatus.DRAFT.value:
         return jsonify({'error': 'Only draft vehicles can be submitted'}), 400
     if not all([vehicle.year, vehicle.make, vehicle.model, vehicle.starting_price]):
         return jsonify({'error': 'Missing required fields (year, make, model, starting_price)'}), 400
     
-    vehicle.status = 'pending_review'
+    vehicle.status = VehicleStatus.PENDING_REVIEW.value
     db.session.commit()
     
     return jsonify({'message': 'Vehicle submitted for review', 'status': vehicle.status})
