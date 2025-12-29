@@ -180,8 +180,6 @@ def init_sentry(environment: str):
         send_default_pii=True,
         # Release tracking
         release=os.environ.get('APP_VERSION', '0.1.0'),
-        # Attach request data
-        request_bodies="medium",
         # Filter out health checks from transactions
         traces_sampler=traces_sampler,
     )
