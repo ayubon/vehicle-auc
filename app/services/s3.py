@@ -80,14 +80,19 @@ class S3Service:
                 ExpiresIn=expires_in,
             )
             
-            public_url = f'https://{self.bucket}.s3.{self.region}.amazonaws.com/{s3_key}'
+            # Generate a presigned GET URL for viewing (valid for 7 days)
+            view_url = self.client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': self.bucket, 'Key': s3_key},
+                ExpiresIn=604800,  # 7 days
+            )
             
             logger.info("Generated presigned upload URL", s3_key=s3_key)
             
             return {
                 'upload_url': upload_url,
                 's3_key': s3_key,
-                'public_url': public_url,
+                'public_url': view_url,  # Use presigned GET URL
             }
             
         except ClientError as e:
