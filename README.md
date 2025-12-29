@@ -263,45 +263,51 @@ audit_log
 
 ## External Integrations
 
-| Service | Purpose | Sandbox Available |
-|---------|---------|-------------------|
-| **Authorize.Net** | Payment processing ($0 auth, charges, refunds) | ✅ Yes |
-| **Persona** | ID verification (driver's license, passport) | ✅ Yes |
-| **ClearVIN** | VIN decoding (year, make, model, specs) | ⚠️ Check |
-| **Super Dispatch** | Towing/transport dispatch and tracking | ⚠️ Check |
-| **DLR DMV** | Title transfer processing (state-specific) | ⚠️ Check |
-| **SendGrid** | Transactional emails | ✅ Yes |
-| **OpenAI** | AI assistant (vehicle descriptions, support) | ✅ Yes |
-| **AWS S3** | File storage (images, documents) | ✅ Yes |
+| Service | Purpose | Status |
+|---------|---------|--------|
+| **Clerk** | SSO authentication (Google, GitHub) | ✅ Configured |
+| **AWS S3** | Vehicle image storage | ✅ Working |
+| **ClearVIN** | VIN decoding (year, make, model, specs) | ✅ Working (mock fallback) |
+| **Authorize.Net** | Payment processing | ❌ Not started |
+| **Persona** | ID verification | ❌ Not started |
+| **SendGrid** | Transactional emails | ❌ Not started |
+| **Super Dispatch** | Towing/transport dispatch | ❌ Not started |
+| **DLR DMV** | Title transfer processing | ❌ Not started |
+| **OpenAI** | AI assistant | ❌ Not started |
 
 ---
 
 ## Development Phases
 
-### Phase 1: Foundation ⏳
-- [ ] Test harness (pytest + Playwright)
-- [ ] Docker setup (MySQL + Redis + Flask)
-- [ ] Flask app factory with blueprints
-- [ ] SQLAlchemy models for all tables
-- [ ] Database migrations (Alembic)
-- [ ] Observability (structlog, OpenTelemetry, Prometheus)
+### Phase 1: Foundation ✅ Complete
+- [x] Test harness (pytest + Playwright)
+- [x] Docker setup (MySQL + Redis + Flask)
+- [x] Flask app factory with blueprints
+- [x] SQLAlchemy models for all tables (16 models)
+- [x] Database migrations (Alembic)
+- [x] Observability (structlog, Prometheus metrics, Sentry)
+- [x] Health check endpoints (`/health`, `/health/detailed`)
 
-### Phase 2: Authentication
-- [ ] Flask-Security-Too configuration
-- [ ] User registration + email verification
-- [ ] Login/logout + password reset
-- [ ] Persona ID verification integration
-- [ ] Authorize.Net payment profile setup ($0 auth)
-- [ ] Role-based access (buyer, seller, admin)
+### Phase 2: Authentication ✅ Complete
+- [x] Clerk SSO integration (Google, GitHub sign-in)
+- [x] Flask-JWT-Extended for API auth
+- [x] Clerk → Flask JWT sync endpoint (`/api/auth/clerk-sync`)
+- [x] User registration + profile management
+- [x] Role-based access (buyer, seller, admin)
+- [ ] Persona ID verification integration (not started)
+- [ ] Authorize.Net payment profile setup (not started)
 
-### Phase 3: Vehicles
-- [ ] ClearVIN API integration
-- [ ] Vehicle CRUD (create, read, update, delete)
-- [ ] S3 image uploads (presigned URLs)
-- [ ] Inventory listing page with filters
-- [ ] Vehicle detail page
+### Phase 3: Vehicles ✅ Complete
+- [x] ClearVIN API integration (with mock fallback)
+- [x] Vehicle CRUD (create, read, update, delete)
+- [x] S3 image uploads (presigned URLs for upload + view)
+- [x] Drag-and-drop image upload UI
+- [x] Inventory listing page with filters (make, year, price)
+- [x] Vehicle detail page
+- [x] Vehicle create form with VIN decode
+- [x] Submit for review → active (admin approval skipped for now)
 
-### Phase 4: Auctions (Core Feature)
+### Phase 4: Auctions ⏳ Next
 - [ ] Auction creation and management
 - [ ] Real-time bidding via WebSocket (Flask-SocketIO)
 - [ ] Auto-bid (proxy bidding)
@@ -340,67 +346,62 @@ audit_log
 vehicle-auc/
 ├── frontend/                    # React SPA (Vite + TypeScript)
 │   ├── src/
-│   │   ├── components/          # Reusable UI components
-│   │   │   ├── ui/              # shadcn/ui components
-│   │   │   └── Layout.tsx       # App layout wrapper
-│   │   ├── pages/               # Route components
+│   │   ├── components/
+│   │   │   ├── ui/              # shadcn/ui (Button, Card, Input, etc.)
+│   │   │   ├── Layout.tsx       # App layout with nav
+│   │   │   └── ImageUpload.tsx  # Drag-and-drop S3 upload
+│   │   ├── pages/
 │   │   │   ├── HomePage.tsx
-│   │   │   ├── VehiclesPage.tsx
+│   │   │   ├── VehiclesPage.tsx      # Grid + filters
+│   │   │   ├── VehicleDetailPage.tsx
+│   │   │   ├── VehicleCreatePage.tsx # Full form + image upload
+│   │   │   ├── AuctionsPage.tsx
 │   │   │   ├── AuctionDetailPage.tsx
-│   │   │   ├── LoginPage.tsx
-│   │   │   └── ...
-│   │   ├── services/            # API client functions
-│   │   │   └── api.ts
-│   │   ├── hooks/               # Custom React hooks
-│   │   ├── store/               # Global state (if needed)
-│   │   ├── types/               # TypeScript types
-│   │   ├── lib/                 # Utilities
-│   │   │   └── utils.ts
-│   │   ├── App.tsx              # Root component with routes
-│   │   ├── main.tsx             # Entry point
-│   │   └── index.css            # Tailwind CSS
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.js
-│   └── tsconfig.json
+│   │   │   └── DashboardPage.tsx
+│   │   ├── hooks/
+│   │   │   ├── useVehicles.ts   # List + filter vehicles
+│   │   │   ├── useVehicle.ts    # Single vehicle fetch
+│   │   │   └── useAuth.ts       # Clerk → Flask JWT sync
+│   │   ├── services/
+│   │   │   └── api.ts           # Axios client + API functions
+│   │   ├── types/
+│   │   │   ├── vehicle.ts       # Vehicle interfaces
+│   │   │   └── form.ts          # Zod schemas
+│   │   ├── App.tsx              # Routes + Clerk provider
+│   │   └── main.tsx
+│   └── package.json
 │
 ├── app/                         # Flask JSON API
-│   ├── __init__.py              # Flask app factory
-│   ├── config.py                # Configuration classes
-│   ├── extensions.py            # Flask extensions init
-│   ├── models/                  # SQLAlchemy models
-│   │   ├── user.py
-│   │   ├── vehicle.py
-│   │   ├── auction.py
-│   │   └── order.py
-│   ├── routes/                  # API Blueprints (JSON only)
-│   │   ├── api.py               # /api/* endpoints
-│   │   ├── auth.py              # /api/auth/* endpoints
-│   │   ├── vehicles.py          # /api/vehicles/* endpoints
-│   │   ├── auctions.py          # /api/auctions/* endpoints
-│   │   └── orders.py            # /api/orders/* endpoints
-│   ├── services/                # Business logic & integrations
-│   │   ├── authorize_net.py
-│   │   ├── persona.py
-│   │   ├── clearvin.py
-│   │   ├── super_dispatch.py
-│   │   ├── dlr_dmv.py
-│   │   ├── sendgrid.py
-│   │   └── openai.py
-│   ├── websocket.py             # Socket.IO event handlers
+│   ├── __init__.py              # App factory + setup
+│   ├── config.py                # Environment configs
+│   ├── constants.py             # Status enums (VehicleStatus, etc.)
+│   ├── extensions.py            # Flask extensions (db, jwt, socketio)
 │   ├── custom_metrics.py        # Prometheus metrics
-│   └── instrumentation.py       # Observability helpers
+│   ├── models/
+│   │   ├── user.py              # User, Role, SellerProfile
+│   │   ├── vehicle.py           # Vehicle, VehicleImage, VehicleDocument
+│   │   ├── auction.py           # Auction, Bid, Offer
+│   │   ├── order.py             # Order, Invoice, Payment, Refund
+│   │   ├── fulfillment.py       # TitleTransfer, TransportOrder
+│   │   └── misc.py              # Notification, SavedSearch, Watchlist
+│   ├── routes/
+│   │   ├── api/                 # Domain-organized API routes
+│   │   │   ├── vehicles.py      # CRUD, submit, filters
+│   │   │   ├── images.py        # S3 upload URLs
+│   │   │   ├── auctions.py      # Bid history
+│   │   │   └── vin.py           # VIN decoding
+│   │   └── auth.py              # JWT auth + Clerk sync
+│   └── services/
+│       ├── s3.py                # Presigned URLs
+│       └── clearvin.py          # VIN decoding (mock available)
 │
 ├── migrations/                  # Alembic migrations
 ├── tests/
 │   ├── e2e/                     # Playwright E2E tests
-│   ├── integration/             # API integration tests
-│   └── unit/                    # Unit tests
-├── docker-compose.yml           # Local development
-├── Dockerfile
+│   └── unit/                    # Unit tests (14 passing)
+├── docker-compose.yml
 ├── requirements.txt
-├── .env.example
-└── README.md
+└── .env.example
 ```
 
 ---
@@ -581,37 +582,43 @@ Process Refunds → Manage Users → View Reports
 
 ---
 
-## API Endpoints (Planned)
+## API Endpoints
 
-### Auth
-- `POST /auth/register` — User registration
-- `POST /auth/login` — User login
-- `POST /auth/logout` — User logout
-- `POST /auth/reset-password` — Password reset
+### Auth (Implemented ✅)
+- `POST /api/auth/clerk-sync` — Sync Clerk user → get Flask JWT
+- `POST /api/auth/register` — User registration
+- `POST /api/auth/login` — User login (email/password)
+- `POST /api/auth/refresh` — Refresh JWT token
+- `GET /api/auth/me` — Get current user
+- `PUT /api/auth/profile` — Update profile
 
-### Vehicles
-- `GET /api/vehicles` — List vehicles (with filters)
+### Vehicles (Implemented ✅)
+- `GET /api/vehicles` — List vehicles (with filters: make, year, price)
 - `GET /api/vehicles/<id>` — Vehicle detail
-- `POST /api/vehicles` — Create vehicle (seller)
+- `POST /api/vehicles` — Create vehicle (seller, JWT required)
 - `PUT /api/vehicles/<id>` — Update vehicle
 - `DELETE /api/vehicles/<id>` — Delete vehicle
-- `POST /api/vehicles/decode-vin` — Decode VIN via ClearVIN
+- `POST /api/vehicles/<id>/submit` — Submit for review → active
+- `POST /api/vehicles/<id>/upload-url` — Get S3 presigned upload URL
+- `POST /api/vehicles/<id>/images` — Register uploaded image
+- `DELETE /api/vehicles/<id>/images/<image_id>` — Delete image
 
-### Auctions
-- `GET /api/auctions` — List active auctions
-- `GET /api/auctions/<id>` — Auction detail
-- `POST /api/auctions/<id>/bid` — Place bid
+### VIN (Implemented ✅)
+- `GET /api/vin/decode/<vin>` — Decode VIN via ClearVIN
+
+### Auctions (Partial)
+- `GET /api/auctions/<id>/bids` — Get bid history
+
+### Health (Implemented ✅)
+- `GET /health` — Basic health check
+- `GET /health/detailed` — Detailed health (DB, Redis)
+- `GET /metrics` — Prometheus metrics
+
+### Planned
+- `POST /api/auctions/<id>/bid` — Place bid (WebSocket)
 - `POST /api/auctions/<id>/auto-bid` — Set auto-bid
-- `WebSocket /socket.io` — Real-time bid updates
-
-### Orders
 - `GET /api/orders` — User's orders
-- `GET /api/orders/<id>` — Order detail
 - `POST /api/orders/<id>/pay` — Process payment
-- `GET /api/orders/<id>/invoice` — Download invoice PDF
-
-### Admin
-- `GET /admin/` — Admin dashboard (Flask-Admin)
 
 ---
 
