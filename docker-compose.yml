@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: vehicle_auc_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: vehicle_auc
+      MYSQL_USER: vehicle_auc
+      MYSQL_PASSWORD: vehicle_auc
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: vehicle_auc_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Uncomment to run Flask in Docker (optional for local dev)
+  # web:
+  #   build: .
+  #   container_name: vehicle_auc_web
+  #   restart: unless-stopped
+  #   ports:
+  #     - "5000:5000"
+  #   environment:
+  #     - FLASK_APP=app
+  #     - FLASK_ENV=development
+  #     - DATABASE_URL=mysql+pymysql://vehicle_auc:vehicle_auc@db:3306/vehicle_auc
+  #     - REDIS_URL=redis://redis:6379/0
+  #   volumes:
+  #     - .:/app
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+
+volumes:
+  mysql_data:
+  redis_data:

@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  db-test:
+    image: mysql:8.0
+    container_name: vehicle_auc_db_test
+    environment:
+      MYSQL_ROOT_PASSWORD: testpassword
+      MYSQL_DATABASE: vehicle_auc_test
+      MYSQL_USER: vehicle_auc_test
+      MYSQL_PASSWORD: vehicle_auc_test
+    ports:
+      - "3307:3306"
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-test:
+    image: redis:7-alpine
+    container_name: vehicle_auc_redis_test
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

@@ -1,0 +1,216 @@
+/* Vehicle Auction - Custom Styles */
+
+:root {
+    --primary-color: #0d6efd;
+    --secondary-color: #6c757d;
+    --success-color: #198754;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+}
+
+/* General */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Navbar */
+.navbar-brand {
+    font-size: 1.5rem;
+}
+
+/* Cards */
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Vehicle Cards */
+.vehicle-card .card-img-top {
+    height: 200px;
+    object-fit: cover;
+}
+
+/* Auction Timer */
+.auction-timer {
+    font-family: 'Courier New', monospace;
+    font-size: 1.25rem;
+    font-weight: bold;
+}
+
+.auction-timer.ending-soon {
+    color: var(--danger-color);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Bid History */
+.bid-history {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.bid-history-item {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+.bid-history-item:last-child {
+    border-bottom: none;
+}
+
+/* Status Badges */
+.badge-runs-drives {
+    background-color: var(--success-color);
+}
+
+.badge-does-not-start {
+    background-color: var(--danger-color);
+}
+
+.badge-clean-title {
+    background-color: var(--success-color);
+}
+
+.badge-salvage-title {
+    background-color: var(--warning-color);
+    color: #000;
+}
+
+/* Forms */
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Buttons */
+.btn-bid {
+    font-size: 1.25rem;
+    padding: 0.75rem 2rem;
+}
+
+/* Loading Spinner */
+.spinner-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+/* Image Gallery */
+.vehicle-gallery {
+    position: relative;
+}
+
+.vehicle-gallery .main-image {
+    width: 100%;
+    height: 400px;
+    object-fit: cover;
+    border-radius: 0.5rem;
+}
+
+.vehicle-gallery .thumbnails {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    overflow-x: auto;
+}
+
+.vehicle-gallery .thumbnail {
+    width: 80px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.vehicle-gallery .thumbnail:hover,
+.vehicle-gallery .thumbnail.active {
+    opacity: 1;
+}
+
+/* Dashboard Stats */
+.stat-card {
+    text-align: center;
+    padding: 1.5rem;
+}
+
+.stat-card .stat-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.stat-card .stat-label {
+    color: var(--secondary-color);
+    text-transform: uppercase;
+    font-size: 0.875rem;
+}
+
+/* Order Status Timeline */
+.order-timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.order-timeline::before {
+    content: '';
+    position: absolute;
+    left: 0.5rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.order-timeline-item {
+    position: relative;
+    padding-bottom: 1.5rem;
+}
+
+.order-timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -1.5rem;
+    top: 0.25rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #dee2e6;
+}
+
+.order-timeline-item.completed::before {
+    background: var(--success-color);
+}
+
+.order-timeline-item.current::before {
+    background: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.25);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .vehicle-gallery .main-image {
+        height: 250px;
+    }
+    
+    .stat-card .stat-value {
+        font-size: 1.75rem;
+    }
+}
