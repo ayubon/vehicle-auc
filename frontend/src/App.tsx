@@ -5,6 +5,7 @@ import Layout from '@/components/Layout';
 import HomePage from '@/pages/HomePage';
 import VehiclesPage from '@/pages/VehiclesPage';
 import VehicleDetailPage from '@/pages/VehicleDetailPage';
+import VehicleCreatePage from '@/pages/VehicleCreatePage';
 import AuctionsPage from '@/pages/AuctionsPage';
 import AuctionDetailPage from '@/pages/AuctionDetailPage';
 import DashboardPage from '@/pages/DashboardPage';
@@ -35,6 +36,7 @@ function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<HomePage />} />
             <Route path="vehicles" element={<VehiclesPage />} />
+            <Route path="vehicles/new" element={<VehicleCreatePage />} />
             <Route path="vehicles/:id" element={<VehicleDetailPage />} />
             <Route path="auctions" element={<AuctionsPage />} />
             <Route path="auctions/:id" element={<AuctionDetailPage />} />

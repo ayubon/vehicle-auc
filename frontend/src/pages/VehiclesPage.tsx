@@ -58,6 +58,9 @@ export default function VehiclesPage() {
           <h1 className="text-3xl font-bold">Vehicle Inventory</h1>
           <p className="text-muted-foreground">{total} vehicles available</p>
         </div>
+        <Link to="/vehicles/new">
+          <Button>List a Vehicle</Button>
+        </Link>
       </div>
 
       {/* Filters */}
