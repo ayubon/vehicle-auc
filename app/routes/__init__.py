@@ -16,8 +16,8 @@ auctions_bp = Blueprint('auctions', __name__)
 # Orders blueprint
 orders_bp = Blueprint('orders', __name__)
 
-# API blueprint
-api_bp = Blueprint('api', __name__)
+# API blueprint - now a package with domain modules
+from .api import api_bp  # noqa: F401, E402
 
 # Import routes to register them
-from . import main, auth, vehicles, auctions, orders, api  # noqa: F401, E402
+from . import main, auth, vehicles, auctions, orders  # noqa: F401, E402

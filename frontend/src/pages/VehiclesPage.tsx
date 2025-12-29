@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { vehiclesApi } from '@/services/api';
+import { useVehicles } from '@/hooks';
+import type { VehicleFilters } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,56 +10,15 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Car, MapPin, Gauge, FileText } from 'lucide-react';
 
-interface Vehicle {
-  id: number;
-  vin: string;
-  year: number;
-  make: string;
-  model: string;
-  trim?: string;
-  mileage?: number;
-  condition?: string;
-  title_type?: string;
-  starting_price?: number;
-  buy_now_price?: number;
-  location_city?: string;
-  location_state?: string;
-  primary_image_url?: string;
-}
-
 export default function VehiclesPage() {
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<VehicleFilters>({
     make: '',
     year_min: '',
     year_max: '',
     price_max: '',
   });
 
-  // Fetch all vehicles once, filter client-side for instant feedback
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['vehicles'],
-    queryFn: () => vehiclesApi.list({}),
-  });
-
-  // Client-side filtering for instant response
-  const vehicles: Vehicle[] = useMemo(() => {
-    const allVehicles: Vehicle[] = data?.data?.vehicles || [];
-    return allVehicles.filter((v) => {
-      if (filters.make && !v.make.toLowerCase().includes(filters.make.toLowerCase())) {
-        return false;
-      }
-      if (filters.year_min && v.year < parseInt(filters.year_min)) {
-        return false;
-      }
-      if (filters.year_max && v.year > parseInt(filters.year_max)) {
-        return false;
-      }
-      if (filters.price_max && v.starting_price && v.starting_price > parseFloat(filters.price_max)) {
-        return false;
-      }
-      return true;
-    });
-  }, [data, filters]);
+  const { vehicles, total, isLoading, error } = useVehicles(filters);
 
   if (isLoading) {
     return (
@@ -91,7 +50,6 @@ export default function VehiclesPage() {
     );
   }
 
-  const total = vehicles.length;
 
   return (
     <div className="container mx-auto px-4 py-8">
