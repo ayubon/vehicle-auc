@@ -1,7 +1,8 @@
 """Flask application factory."""
 import os
-from flask import Flask
-from .extensions import db, migrate, login_manager, socketio, csrf
+import logging
+from flask import Flask, request, g
+from .extensions import db, migrate, login_manager, socketio, csrf, metrics, redis_client
 from .config import config
 
 
@@ -13,6 +14,9 @@ def create_app(config_name=None):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
     
+    # Configure logging first
+    configure_logging(app)
+    
     # Initialize extensions
     register_extensions(app)
     
@@ -22,8 +26,8 @@ def create_app(config_name=None):
     # Register error handlers
     register_error_handlers(app)
     
-    # Configure logging
-    configure_logging(app)
+    # Register request hooks for observability
+    register_request_hooks(app)
     
     return app
 
@@ -35,6 +39,7 @@ def register_extensions(app):
     login_manager.init_app(app)
     csrf.init_app(app)
     socketio.init_app(app, cors_allowed_origins="*")
+    metrics.init_app(app)
     
     # Import models to ensure they're registered with SQLAlchemy
     from . import models  # noqa: F401
@@ -64,12 +69,60 @@ def register_error_handlers(app):
         return {'error': 'Internal server error'}, 500
 
 
+def register_request_hooks(app):
+    """Register request hooks for observability."""
+    import time
+    import uuid
+    import structlog
+    
+    logger = structlog.get_logger(__name__)
+    
+    @app.before_request
+    def before_request():
+        """Log request start and set correlation ID."""
+        g.request_id = str(uuid.uuid4())[:8]
+        g.start_time = time.time()
+        
+        logger.info(
+            "request_started",
+            request_id=g.request_id,
+            method=request.method,
+            path=request.path,
+            remote_addr=request.remote_addr,
+        )
+    
+    @app.after_request
+    def after_request(response):
+        """Log request completion with timing."""
+        duration_ms = (time.time() - g.start_time) * 1000
+        
+        logger.info(
+            "request_completed",
+            request_id=g.request_id,
+            method=request.method,
+            path=request.path,
+            status_code=response.status_code,
+            duration_ms=round(duration_ms, 2),
+        )
+        
+        # Add request ID to response headers for debugging
+        response.headers['X-Request-ID'] = g.request_id
+        return response
+
+
 def configure_logging(app):
     """Configure structured logging."""
     import structlog
     
+    # Configure stdlib logging
+    logging.basicConfig(
+        format="%(message)s",
+        level=logging.INFO if not app.debug else logging.DEBUG,
+    )
+    
     structlog.configure(
         processors=[
+            structlog.contextvars.merge_contextvars,
             structlog.stdlib.filter_by_level,
             structlog.stdlib.add_logger_name,
             structlog.stdlib.add_log_level,
@@ -85,3 +138,5 @@ def configure_logging(app):
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
+    
+    app.logger.info("Logging configured")
