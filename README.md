@@ -54,24 +54,28 @@ We are cloning the functionality of **[RemarketSpace.com](https://www.remarketsp
 
 ## Tech Stack
 
-### Frontend
+### Frontend (React SPA)
 | Technology | Purpose |
 |------------|---------|
-| **Bootstrap 5** | Responsive UI framework |
-| **Vanilla JavaScript + AJAX** | Client-side interactivity |
-| **Jinja2** | Server-side HTML templating |
+| **React 18 + TypeScript** | UI framework |
+| **Vite** | Build tool & dev server |
+| **Tailwind CSS v4** | Utility-first styling |
+| **shadcn/ui** | Pre-built accessible components |
+| **React Router** | Client-side routing |
+| **TanStack Query** | Server state management |
+| **React Hook Form + Zod** | Form handling & validation |
 | **Socket.IO Client** | Real-time bid updates |
+| **Lucide React** | Icons |
 
-### Backend
+### Backend (Flask JSON API)
 | Technology | Purpose |
 |------------|---------|
 | **Python 3.11+** | Runtime |
-| **Flask 3.x** | Web framework |
+| **Flask 3.x** | REST API framework |
 | **Flask-SQLAlchemy** | ORM for MySQL |
-| **Flask-Security-Too** | Authentication (registration, login, roles, 2FA) |
+| **Flask-JWT-Extended** | JWT authentication |
 | **Flask-SocketIO** | WebSocket server for real-time bidding |
 | **Flask-Admin** | Admin panel UI |
-| **Flask-WTF** | Forms + CSRF protection |
 | **Celery + Redis** | Background job processing |
 | **APScheduler** | Cron jobs (auction timers) |
 
@@ -103,19 +107,30 @@ We are cloning the functionality of **[RemarketSpace.com](https://www.remarketsp
 
 ## Architecture
 
+This project uses a **decoupled SPA architecture**:
+
+- **Frontend**: React SPA served by Vite (dev) or static hosting (prod)
+- **Backend**: Flask JSON API (no server-side rendering)
+- **Communication**: REST API + WebSocket for real-time features
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              FRONTEND                                        │
-│  Bootstrap 5 + JavaScript/AJAX + Socket.IO Client + Jinja2 Templates        │
+│                         FRONTEND (React SPA)                                 │
+│  React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui                    │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ Pages        │  │ Components   │  │ Services     │  │ Hooks        │     │
+│  │ (Routes)     │  │ (shadcn/ui)  │  │ (API calls)  │  │ (React Query)│     │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘     │
+│                         + Socket.IO Client (real-time bids)                  │
 └─────────────────────────────────────────────────────────────────────────────┘
-                                    │
+                                    │ REST API + WebSocket
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         BACKEND (Flask + Python 3.11)                        │
+│                         BACKEND (Flask JSON API)                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
 │  │ Auth         │  │ Auction      │  │ Payments     │  │ Titles/DMV   │     │
-│  │ (Flask-      │  │ Engine       │  │ (Authorize.  │  │ (DLR DMV)    │     │
-│  │ Security-Too)│  │ (WebSocket)  │  │ Net)         │  │              │     │
+│  │ (JWT)        │  │ Engine       │  │ (Authorize.  │  │ (DLR DMV)    │     │
+│  │              │  │ (WebSocket)  │  │ Net)         │  │              │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘     │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
 │  │ Transport    │  │ VIN Decode   │  │ Notifications│  │ AI Assistant │     │
@@ -137,6 +152,16 @@ We are cloning the functionality of **[RemarketSpace.com](https://www.remarketsp
 │  AWS EC2 (Docker) │ AWS S3 (files) │ CloudFront (CDN) │ Cloudflare (DNS)   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Why This Architecture?
+
+| Benefit | Description |
+|---------|-------------|
+| **Better UX** | SPA provides instant navigation, no page reloads |
+| **Reusable Components** | shadcn/ui provides consistent, accessible UI |
+| **Type Safety** | TypeScript catches errors at compile time |
+| **Scalability** | Frontend can be deployed to CDN, backend scales independently |
+| **Modern Tooling** | Hot reload, tree shaking, code splitting out of the box |
 
 ---
 
@@ -313,26 +338,48 @@ audit_log
 
 ```
 vehicle-auc/
-├── app/
+├── frontend/                    # React SPA (Vite + TypeScript)
+│   ├── src/
+│   │   ├── components/          # Reusable UI components
+│   │   │   ├── ui/              # shadcn/ui components
+│   │   │   └── Layout.tsx       # App layout wrapper
+│   │   ├── pages/               # Route components
+│   │   │   ├── HomePage.tsx
+│   │   │   ├── VehiclesPage.tsx
+│   │   │   ├── AuctionDetailPage.tsx
+│   │   │   ├── LoginPage.tsx
+│   │   │   └── ...
+│   │   ├── services/            # API client functions
+│   │   │   └── api.ts
+│   │   ├── hooks/               # Custom React hooks
+│   │   ├── store/               # Global state (if needed)
+│   │   ├── types/               # TypeScript types
+│   │   ├── lib/                 # Utilities
+│   │   │   └── utils.ts
+│   │   ├── App.tsx              # Root component with routes
+│   │   ├── main.tsx             # Entry point
+│   │   └── index.css            # Tailwind CSS
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tailwind.config.js
+│   └── tsconfig.json
+│
+├── app/                         # Flask JSON API
 │   ├── __init__.py              # Flask app factory
 │   ├── config.py                # Configuration classes
 │   ├── extensions.py            # Flask extensions init
 │   ├── models/                  # SQLAlchemy models
-│   │   ├── __init__.py
 │   │   ├── user.py
 │   │   ├── vehicle.py
 │   │   ├── auction.py
-│   │   ├── order.py
-│   │   └── ...
-│   ├── routes/                  # Blueprints
-│   │   ├── __init__.py
-│   │   ├── auth.py
-│   │   ├── vehicles.py
-│   │   ├── auctions.py
-│   │   ├── orders.py
-│   │   └── admin.py
+│   │   └── order.py
+│   ├── routes/                  # API Blueprints (JSON only)
+│   │   ├── api.py               # /api/* endpoints
+│   │   ├── auth.py              # /api/auth/* endpoints
+│   │   ├── vehicles.py          # /api/vehicles/* endpoints
+│   │   ├── auctions.py          # /api/auctions/* endpoints
+│   │   └── orders.py            # /api/orders/* endpoints
 │   ├── services/                # Business logic & integrations
-│   │   ├── __init__.py
 │   │   ├── authorize_net.py
 │   │   ├── persona.py
 │   │   ├── clearvin.py
@@ -340,43 +387,18 @@ vehicle-auc/
 │   │   ├── dlr_dmv.py
 │   │   ├── sendgrid.py
 │   │   └── openai.py
-│   ├── templates/               # Jinja2 templates
-│   │   ├── base.html
-│   │   ├── auth/
-│   │   ├── vehicles/
-│   │   ├── auctions/
-│   │   └── ...
-│   ├── static/                  # CSS, JS, images
-│   │   ├── css/
-│   │   ├── js/
-│   │   └── img/
-│   └── websocket.py             # Socket.IO event handlers
+│   ├── websocket.py             # Socket.IO event handlers
+│   ├── custom_metrics.py        # Prometheus metrics
+│   └── instrumentation.py       # Observability helpers
+│
 ├── migrations/                  # Alembic migrations
 ├── tests/
-│   ├── conftest.py              # Shared fixtures
 │   ├── e2e/                     # Playwright E2E tests
-│   │   ├── test_registration.py
-│   │   ├── test_bidding.py
-│   │   └── ...
 │   ├── integration/             # API integration tests
-│   │   ├── test_auth_api.py
-│   │   ├── test_auction_api.py
-│   │   └── ...
-│   ├── unit/                    # Unit tests
-│   │   ├── test_models.py
-│   │   └── test_services.py
-│   └── load/                    # Load tests (Locust)
-│       └── locustfile.py
-├── observability/
-│   ├── prometheus.yml
-│   └── grafana/
+│   └── unit/                    # Unit tests
 ├── docker-compose.yml           # Local development
-├── docker-compose.test.yml      # Test environment
-├── docker-compose.prod.yml      # Production
 ├── Dockerfile
 ├── requirements.txt
-├── pytest.ini
-├── pyproject.toml
 ├── .env.example
 └── README.md
 ```
@@ -388,9 +410,8 @@ vehicle-auc/
 ### Prerequisites
 
 - Python 3.11+
+- Node.js 18+
 - Docker & Docker Compose
-- Node.js (for Playwright)
-- GitHub CLI (`gh`)
 
 ### Local Development Setup
 
@@ -404,7 +425,11 @@ cp .env.example .env
 # Edit .env with your API keys
 
 # Start services (MySQL, Redis)
-docker-compose up -d
+docker compose up -d
+
+# ─────────────────────────────────────────────────────────────
+# BACKEND (Flask API)
+# ─────────────────────────────────────────────────────────────
 
 # Create virtual environment
 python3 -m venv venv
@@ -416,12 +441,31 @@ pip install -r requirements.txt
 # Run database migrations
 flask db upgrade
 
-# Start the development server
-flask run --debug
+# Start the API server (port 5001)
+flask run --port 5001
 
-# In another terminal, start Celery worker
-celery -A app.celery worker --loglevel=info
+# ─────────────────────────────────────────────────────────────
+# FRONTEND (React SPA)
+# ─────────────────────────────────────────────────────────────
+
+# In a new terminal
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start dev server (port 3000, proxies /api to Flask)
+npm run dev
 ```
+
+### Development URLs
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | http://localhost:3000 |
+| **Backend API** | http://localhost:5001/api |
+| **Health Check** | http://localhost:5001/health |
+| **Prometheus Metrics** | http://localhost:5001/metrics |
 
 ### Running Tests
 

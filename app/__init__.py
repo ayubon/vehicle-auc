@@ -6,7 +6,7 @@ from flask import Flask, request, g
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
-from .extensions import db, migrate, login_manager, socketio, csrf, metrics, redis_client
+from .extensions import db, migrate, security, socketio, csrf, metrics, redis_client
 from .config import config
 from .custom_metrics import init_app_info
 
@@ -50,13 +50,19 @@ def register_extensions(app):
     """Register Flask extensions."""
     db.init_app(app)
     migrate.init_app(app, db)
-    login_manager.init_app(app)
     csrf.init_app(app)
     socketio.init_app(app, cors_allowed_origins="*")
     metrics.init_app(app)
     
     # Import models to ensure they're registered with SQLAlchemy
     from . import models  # noqa: F401
+    
+    # Initialize Flask-Security-Too with user datastore
+    from flask_security import SQLAlchemyUserDatastore
+    from .models import User, Role
+    
+    user_datastore = SQLAlchemyUserDatastore(db, User, Role)
+    security.init_app(app, user_datastore)
 
 
 def register_blueprints(app):

@@ -23,12 +23,24 @@ class Config:
     
     # Flask-Security-Too
     SECURITY_REGISTERABLE = True
-    SECURITY_CONFIRMABLE = True
+    SECURITY_CONFIRMABLE = False  # Disable until email is configured
     SECURITY_RECOVERABLE = True
     SECURITY_TRACKABLE = True
     SECURITY_CHANGEABLE = True
-    SECURITY_SEND_REGISTER_EMAIL = True
+    SECURITY_SEND_REGISTER_EMAIL = False  # Disable until email is configured
     SECURITY_EMAIL_SENDER = os.environ.get('SENDGRID_FROM_EMAIL', 'noreply@localhost')
+    SECURITY_POST_LOGIN_VIEW = '/'
+    SECURITY_POST_LOGOUT_VIEW = '/'
+    SECURITY_POST_REGISTER_VIEW = '/'
+    SECURITY_LOGIN_USER_TEMPLATE = 'security/login.html'
+    SECURITY_REGISTER_USER_TEMPLATE = 'security/register.html'
+    SECURITY_FORGOT_PASSWORD_TEMPLATE = 'security/forgot_password.html'
+    SECURITY_RESET_PASSWORD_TEMPLATE = 'security/reset_password.html'
+    SECURITY_CHANGE_PASSWORD_TEMPLATE = 'security/change_password.html'
+    
+    # Password hashing
+    SECURITY_PASSWORD_HASH = 'bcrypt'
+    SECURITY_PASSWORD_SINGLE_HASH = ['bcrypt']
     
     # Session
     SESSION_TYPE = 'redis'
