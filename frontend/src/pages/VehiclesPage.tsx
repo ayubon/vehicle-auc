@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { vehiclesApi } from '@/services/api';
@@ -35,10 +35,31 @@ export default function VehiclesPage() {
     price_max: '',
   });
 
+  // Fetch all vehicles once, filter client-side for instant feedback
   const { data, isLoading, error } = useQuery({
-    queryKey: ['vehicles', filters],
-    queryFn: () => vehiclesApi.list(filters),
+    queryKey: ['vehicles'],
+    queryFn: () => vehiclesApi.list({}),
   });
+
+  // Client-side filtering for instant response
+  const vehicles: Vehicle[] = useMemo(() => {
+    const allVehicles: Vehicle[] = data?.data?.vehicles || [];
+    return allVehicles.filter((v) => {
+      if (filters.make && !v.make.toLowerCase().includes(filters.make.toLowerCase())) {
+        return false;
+      }
+      if (filters.year_min && v.year < parseInt(filters.year_min)) {
+        return false;
+      }
+      if (filters.year_max && v.year > parseInt(filters.year_max)) {
+        return false;
+      }
+      if (filters.price_max && v.starting_price && v.starting_price > parseFloat(filters.price_max)) {
+        return false;
+      }
+      return true;
+    });
+  }, [data, filters]);
 
   if (isLoading) {
     return (
@@ -70,8 +91,7 @@ export default function VehiclesPage() {
     );
   }
 
-  const vehicles: Vehicle[] = data?.data?.vehicles || [];
-  const total = data?.data?.total || 0;
+  const total = vehicles.length;
 
   return (
     <div className="container mx-auto px-4 py-8">

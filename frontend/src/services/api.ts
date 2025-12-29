@@ -7,23 +7,12 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
+    // Don't redirect on 401 - Clerk handles auth
+    // Just reject the promise so the caller can handle it
     return Promise.reject(error);
   }
 );
@@ -44,8 +33,16 @@ export const vehiclesApi = {
   list: (params?: Record<string, string>) =>
     api.get('/vehicles', { params }),
   get: (id: number) => api.get(`/vehicles/${id}`),
-  create: (data: FormData) =>
-    api.post('/vehicles', data, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  create: (data: Record<string, unknown>) =>
+    api.post('/vehicles', data),
+  update: (id: number, data: Record<string, unknown>) =>
+    api.put(`/vehicles/${id}`, data),
+  delete: (id: number) =>
+    api.delete(`/vehicles/${id}`),
+  getUploadUrl: (vehicleId: number, filename: string, contentType: string) =>
+    api.post(`/vehicles/${vehicleId}/upload-url`, { filename, content_type: contentType }),
+  addImage: (vehicleId: number, s3Key: string, url: string, isPrimary: boolean) =>
+    api.post(`/vehicles/${vehicleId}/images`, { s3_key: s3Key, url, is_primary: isPrimary }),
 };
 
 export const auctionsApi = {
