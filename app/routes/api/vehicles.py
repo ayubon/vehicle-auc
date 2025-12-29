@@ -179,7 +179,7 @@ def submit_vehicle(vehicle_id):
     if not all([vehicle.year, vehicle.make, vehicle.model, vehicle.starting_price]):
         return jsonify({'error': 'Missing required fields (year, make, model, starting_price)'}), 400
     
-    vehicle.status = VehicleStatus.PENDING_REVIEW.value
+    vehicle.status = VehicleStatus.ACTIVE.value  # Skip approval for now
     db.session.commit()
     
-    return jsonify({'message': 'Vehicle submitted for review', 'status': vehicle.status})
+    return jsonify({'message': 'Vehicle is now active', 'status': vehicle.status})
