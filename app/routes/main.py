@@ -106,6 +106,24 @@ def debug_log_test():
     })
 
 
+@main_bp.route('/debug/sentry-test')
+def debug_sentry_test():
+    """Debug endpoint to test Sentry error tracking."""
+    import sentry_sdk
+    
+    # Capture a test message
+    sentry_sdk.capture_message("Test message from /debug/sentry-test")
+    
+    # Optionally trigger a real error (commented out by default)
+    # raise ValueError("Test error from /debug/sentry-test")
+    
+    return jsonify({
+        'status': 'ok',
+        'message': 'Test message sent to Sentry. Check your Sentry dashboard.',
+        'sentry_configured': bool(sentry_sdk.Hub.current.client)
+    })
+
+
 @main_bp.route('/debug/metrics-test')
 def debug_metrics_test():
     """Debug endpoint to test custom Prometheus metrics."""

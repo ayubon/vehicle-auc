@@ -27,6 +27,7 @@ httpx>=0.26.0
 # Observability
 structlog>=23.2.0
 prometheus-flask-exporter>=0.23.0
+sentry-sdk[flask]>=1.39.0
 
 # Utilities
 python-dotenv>=1.0.0

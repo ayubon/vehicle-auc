@@ -1,7 +1,11 @@
 """Flask application factory."""
 import os
 import logging
+import sentry_sdk
 from flask import Flask, request, g
+from sentry_sdk.integrations.flask import FlaskIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.integrations.redis import RedisIntegration
 from .extensions import db, migrate, login_manager, socketio, csrf, metrics, redis_client
 from .config import config
 from .custom_metrics import init_app_info
@@ -11,6 +15,9 @@ def create_app(config_name=None):
     """Create and configure the Flask application."""
     if config_name is None:
         config_name = os.environ.get('FLASK_ENV', 'development')
+    
+    # Initialize Sentry before anything else
+    init_sentry(config_name)
     
     app = Flask(__name__)
     app.config.from_object(config[config_name])
@@ -147,3 +154,48 @@ def configure_logging(app):
     )
     
     app.logger.info("Logging configured")
+
+
+def init_sentry(environment: str):
+    """Initialize Sentry error tracking."""
+    sentry_dsn = os.environ.get('SENTRY_DSN')
+    
+    if not sentry_dsn:
+        logging.info("Sentry DSN not configured, skipping Sentry initialization")
+        return
+    
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        environment=os.environ.get('SENTRY_ENVIRONMENT', environment),
+        integrations=[
+            FlaskIntegration(transaction_style="url"),
+            SqlalchemyIntegration(),
+            RedisIntegration(),
+        ],
+        # Performance monitoring
+        traces_sample_rate=0.1 if environment == 'production' else 1.0,
+        # Profile 10% of sampled transactions
+        profiles_sample_rate=0.1,
+        # Send user info with errors
+        send_default_pii=True,
+        # Release tracking
+        release=os.environ.get('APP_VERSION', '0.1.0'),
+        # Attach request data
+        request_bodies="medium",
+        # Filter out health checks from transactions
+        traces_sampler=traces_sampler,
+    )
+    logging.info(f"Sentry initialized for environment: {environment}")
+
+
+def traces_sampler(sampling_context):
+    """Custom sampler to filter out noisy transactions."""
+    # Don't trace health checks or metrics
+    transaction_context = sampling_context.get("transaction_context", {})
+    name = transaction_context.get("name", "")
+    
+    if name in ["/health", "/health/detailed", "/metrics"]:
+        return 0  # Don't sample these
+    
+    # Sample everything else based on environment
+    return 1.0  # Will be overridden by traces_sample_rate in production
