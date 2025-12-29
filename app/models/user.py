@@ -48,6 +48,9 @@ class User(db.Model, UserMixin):
     fs_uniquifier = db.Column(db.String(64), unique=True, nullable=False)
     confirmed_at = db.Column(db.DateTime)
     
+    # Clerk SSO
+    clerk_user_id = db.Column(db.String(255), unique=True, index=True)
+    
     # Tracking (Flask-Security)
     last_login_at = db.Column(db.DateTime)
     current_login_at = db.Column(db.DateTime)
