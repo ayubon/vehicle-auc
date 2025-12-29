@@ -7,6 +7,15 @@ const api = axios.create({
   },
 });
 
+// Function to set auth token (called from components with Clerk token)
+export const setAuthToken = (token: string | null) => {
+  if (token) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete api.defaults.headers.common['Authorization'];
+  }
+};
+
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,

@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { vehiclesApi } from '@/services/api';
 import { vehicleFormSchema, type VehicleFormData } from '@/types';
+import { useAuth } from '@/hooks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,9 +26,23 @@ interface UploadedImage {
 
 export default function VehicleCreatePage() {
   const navigate = useNavigate();
+  const { isSignedIn, isLoaded } = useAuth();
   const [vehicleId, setVehicleId] = useState<number | null>(null);
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [vinDecoding, setVinDecoding] = useState(false);
+
+  // Require authentication
+  if (isLoaded && !isSignedIn) {
+    return (
+      <div className="container mx-auto px-4 py-8 text-center">
+        <h1 className="text-2xl font-bold mb-4">Sign in Required</h1>
+        <p className="text-muted-foreground mb-4">You need to sign in to list a vehicle.</p>
+        <Link to="/sign-in">
+          <Button>Sign In</Button>
+        </Link>
+      </div>
+    );
+  }
 
   const {
     register,
