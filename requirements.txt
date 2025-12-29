@@ -4,7 +4,7 @@ Flask-SQLAlchemy>=3.1.1
 Flask-Migrate>=4.0.5
 Flask-WTF>=1.2.1
 Flask-Login>=0.6.3
-Flask-Security-Too>=5.3.3
+Flask-JWT-Extended>=4.7.0
 Flask-Admin>=1.6.1
 Flask-SocketIO>=5.3.6
 

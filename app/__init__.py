@@ -6,7 +6,7 @@ from flask import Flask, request, g
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
-from .extensions import db, migrate, security, socketio, csrf, metrics, redis_client
+from .extensions import db, migrate, jwt, socketio, csrf, metrics, redis_client
 from .config import config
 from .custom_metrics import init_app_info
 
@@ -53,16 +53,13 @@ def register_extensions(app):
     csrf.init_app(app)
     socketio.init_app(app, cors_allowed_origins="*")
     metrics.init_app(app)
+    jwt.init_app(app)
     
     # Import models to ensure they're registered with SQLAlchemy
     from . import models  # noqa: F401
     
-    # Initialize Flask-Security-Too with user datastore
-    from flask_security import SQLAlchemyUserDatastore
-    from .models import User, Role
-    
-    user_datastore = SQLAlchemyUserDatastore(db, User, Role)
-    security.init_app(app, user_datastore)
+    # Configure JWT callbacks
+    configure_jwt(app)
 
 
 def register_blueprints(app):
@@ -70,7 +67,7 @@ def register_blueprints(app):
     from .routes import main_bp, auth_bp, vehicles_bp, auctions_bp, orders_bp, api_bp
     
     app.register_blueprint(main_bp)
-    app.register_blueprint(auth_bp, url_prefix='/auth')
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')  # JWT auth API
     app.register_blueprint(vehicles_bp, url_prefix='/vehicles')
     app.register_blueprint(auctions_bp, url_prefix='/auctions')
     app.register_blueprint(orders_bp, url_prefix='/orders')
@@ -114,19 +111,23 @@ def register_request_hooks(app):
     @app.after_request
     def after_request(response):
         """Log request completion with timing."""
-        duration_ms = (time.time() - g.start_time) * 1000
+        # Handle case where before_request didn't run (e.g., error before routing)
+        start_time = getattr(g, 'start_time', None)
+        request_id = getattr(g, 'request_id', 'unknown')
         
-        logger.info(
-            "request_completed",
-            request_id=g.request_id,
-            method=request.method,
-            path=request.path,
-            status_code=response.status_code,
-            duration_ms=round(duration_ms, 2),
-        )
+        if start_time:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.info(
+                "request_completed",
+                request_id=request_id,
+                method=request.method,
+                path=request.path,
+                status_code=response.status_code,
+                duration_ms=round(duration_ms, 2),
+            )
         
         # Add request ID to response headers for debugging
-        response.headers['X-Request-ID'] = g.request_id
+        response.headers['X-Request-ID'] = request_id
         return response
 
 
@@ -203,3 +204,33 @@ def traces_sampler(sampling_context):
     
     # Sample everything else based on environment
     return 1.0  # Will be overridden by traces_sample_rate in production
+
+
+def configure_jwt(app):
+    """Configure JWT callbacks."""
+    from .models import User
+    
+    @jwt.user_identity_loader
+    def user_identity_lookup(user):
+        """Return user ID as identity (must be string)."""
+        if hasattr(user, 'id'):
+            return str(user.id)
+        return str(user)
+    
+    @jwt.user_lookup_loader
+    def user_lookup_callback(_jwt_header, jwt_data):
+        """Load user from JWT identity."""
+        identity = jwt_data["sub"]
+        return db.session.get(User, int(identity))
+    
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_data):
+        return {'error': 'Token has expired', 'code': 'token_expired'}, 401
+    
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error):
+        return {'error': f'Invalid token: {error}', 'code': 'invalid_token'}, 401
+    
+    @jwt.unauthorized_loader
+    def missing_token_callback(error):
+        return {'error': 'Authorization required', 'code': 'authorization_required'}, 401

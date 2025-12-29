@@ -1,9 +1,12 @@
 """API routes for AJAX and external integrations."""
 from flask import request, jsonify
-from flask_login import login_required, current_user
+from flask_jwt_extended import jwt_required, current_user
 from . import api_bp
 from ..models import Vehicle, Auction
 from ..extensions import db, csrf
+
+# Exempt API routes from CSRF (using JWT instead)
+csrf.exempt(api_bp)
 
 
 @api_bp.route('/', strict_slashes=False)

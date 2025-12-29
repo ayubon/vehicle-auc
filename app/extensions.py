@@ -5,7 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from flask_socketio import SocketIO
-from flask_security import Security
+from flask_jwt_extended import JWTManager
 from prometheus_flask_exporter import PrometheusMetrics
 
 # Database
@@ -14,8 +14,8 @@ db = SQLAlchemy()
 # Migrations
 migrate = Migrate()
 
-# Flask-Security-Too
-security = Security()
+# JWT Authentication
+jwt = JWTManager()
 
 # CSRF protection
 csrf = CSRFProtect()
