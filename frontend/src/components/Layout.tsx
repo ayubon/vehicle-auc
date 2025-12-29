@@ -1,16 +1,9 @@
-import { Outlet, Link, useNavigate } from 'react-router-dom';
-import { Car, User, LogIn, LogOut } from 'lucide-react';
+import { Outlet, Link } from 'react-router-dom';
+import { Car, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuthStore } from '@/store/auth';
+import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react';
 
 export default function Layout() {
-  const navigate = useNavigate();
-  const { isAuthenticated, user, logout } = useAuthStore();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -32,32 +25,23 @@ export default function Layout() {
           </nav>
 
           <div className="flex items-center gap-2">
-            {isAuthenticated ? (
-              <>
-                <Button variant="ghost" asChild>
-                  <Link to="/dashboard">
-                    <User className="h-4 w-4 mr-2" />
-                    {user?.first_name || 'Dashboard'}
-                  </Link>
-                </Button>
-                <Button variant="outline" onClick={handleLogout}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Log Out
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button variant="ghost" asChild>
-                  <Link to="/login">
-                    <LogIn className="h-4 w-4 mr-2" />
-                    Log In
-                  </Link>
-                </Button>
-                <Button asChild>
-                  <Link to="/register">Sign Up</Link>
-                </Button>
-              </>
-            )}
+            <SignedIn>
+              <Button variant="ghost" asChild>
+                <Link to="/dashboard">Dashboard</Link>
+              </Button>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
+            <SignedOut>
+              <Button variant="ghost" asChild>
+                <Link to="/sign-in">
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Log In
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link to="/sign-up">Sign Up</Link>
+              </Button>
+            </SignedOut>
           </div>
         </div>
       </header>

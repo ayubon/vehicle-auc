@@ -1,16 +1,17 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from '@/components/ui/toaster';
+import { ClerkProvider, SignIn, SignUp } from '@clerk/clerk-react';
 import Layout from '@/components/Layout';
 import HomePage from '@/pages/HomePage';
 import VehiclesPage from '@/pages/VehiclesPage';
 import VehicleDetailPage from '@/pages/VehicleDetailPage';
 import AuctionsPage from '@/pages/AuctionsPage';
 import AuctionDetailPage from '@/pages/AuctionDetailPage';
-import LoginPage from '@/pages/LoginPage';
-import RegisterPage from '@/pages/RegisterPage';
 import DashboardPage from '@/pages/DashboardPage';
 import NotFoundPage from '@/pages/NotFoundPage';
+import { Toaster } from '@/components/ui/toaster';
+
+const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,7 +23,12 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  return (
+  // If Clerk key not configured, show warning
+  if (!CLERK_PUBLISHABLE_KEY) {
+    console.warn('Clerk publishable key not found. SSO will not work.');
+  }
+
+  const app = (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
@@ -32,16 +38,27 @@ function App() {
             <Route path="vehicles/:id" element={<VehicleDetailPage />} />
             <Route path="auctions" element={<AuctionsPage />} />
             <Route path="auctions/:id" element={<AuctionDetailPage />} />
-            <Route path="login" element={<LoginPage />} />
-            <Route path="register" element={<RegisterPage />} />
+            <Route path="sign-in/*" element={<SignIn routing="path" path="/sign-in" />} />
+            <Route path="sign-up/*" element={<SignUp routing="path" path="/sign-up" />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
-        <Toaster />
       </BrowserRouter>
+      <Toaster />
     </QueryClientProvider>
   );
+
+  // Wrap with ClerkProvider if key is available
+  if (CLERK_PUBLISHABLE_KEY) {
+    return (
+      <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
+        {app}
+      </ClerkProvider>
+    );
+  }
+
+  return app;
 }
 
 export default App;
