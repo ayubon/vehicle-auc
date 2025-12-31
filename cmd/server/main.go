@@ -110,7 +110,7 @@ func main() {
 	auctionHandler := handler.NewAuctionHandler(db, logger)
 	bidHandler := handler.NewBidHandler(engine, logger)
 	sseHandler := handler.NewSSEHandler(broker, logger, cfg)
-	debugHandler := handler.NewDebugHandler(engine, broker)
+	debugHandler := handler.NewDebugHandler(engine, broker, db, logger)
 	authHandler := handler.NewAuthHandler(db, logger)
 	imageHandler := handler.NewImageHandler(db, logger, cfg, nil) // S3 client nil for now
 	watchlistHandler := handler.NewWatchlistHandler(db, logger)
@@ -118,7 +118,7 @@ func main() {
 	vinHandler := handler.NewVINHandler(logger, nil) // VIN decoder nil for now
 
 	// Initialize auth middleware
-	clerkAuth := middleware.NewClerkAuth(logger, cfg.ClerkJWKSURL, cfg.ClerkSecretKey)
+	clerkAuth := middleware.NewClerkAuth(logger, cfg.ClerkJWKSURL, cfg.ClerkSecretKey, db)
 
 	// Setup router
 	r := chi.NewRouter()
@@ -212,6 +212,8 @@ func main() {
 			r.Get("/bidengine", debugHandler.BidEngineStats)
 			r.Get("/sse", debugHandler.SSEStats)
 			r.Get("/stats", debugHandler.AllStats)
+			r.Post("/seed", debugHandler.Seed)
+			r.Delete("/seed", debugHandler.ClearSeed)
 		})
 	}
 
