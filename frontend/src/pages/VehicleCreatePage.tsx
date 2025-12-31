@@ -73,8 +73,7 @@ export default function VehicleCreatePage() {
   });
 
   const submitMutation = useMutation({
-    mutationFn: (id: number) => 
-      fetch(`/api/vehicles/${id}/submit`, { method: 'POST' }).then(r => r.json()),
+    mutationFn: (id: number) => vehiclesApi.submit(id),
     onSuccess: () => {
       navigate('/vehicles');
     },

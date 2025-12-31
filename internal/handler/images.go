@@ -109,6 +109,7 @@ func (h *ImageHandler) GetUploadURL(w http.ResponseWriter, r *http.Request) {
 		"upload_url": uploadURL,
 		"s3_key":     s3Key,
 		"url":        finalURL,
+		"public_url": finalURL, // Frontend expects this field name
 	})
 }
 

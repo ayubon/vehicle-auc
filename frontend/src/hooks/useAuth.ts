@@ -1,20 +1,36 @@
 /**
- * useAuth - syncs Clerk user with backend and gets Flask JWT token.
+ * useAuth - syncs Clerk user with backend and sets up auth token.
+ * Uses Clerk's JWT token directly for API authentication.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth as useClerkAuth, useUser } from '@clerk/clerk-react';
 import { setAuthToken } from '@/services/api';
 
 export function useAuth() {
-  const { isSignedIn, isLoaded } = useClerkAuth();
+  const { isSignedIn, isLoaded, getToken } = useClerkAuth();
   const { user } = useUser();
   const [synced, setSynced] = useState(false);
+
+  // Update auth token whenever needed
+  const updateToken = useCallback(async () => {
+    if (isSignedIn) {
+      const token = await getToken();
+      setAuthToken(token);
+    } else {
+      setAuthToken(null);
+    }
+  }, [isSignedIn, getToken]);
 
   useEffect(() => {
     const syncWithBackend = async () => {
       if (isLoaded && isSignedIn && user && !synced) {
         try {
-          // Sync Clerk user with backend and get Flask JWT
+          // Get Clerk token and set it for API calls
+          const token = await getToken();
+          console.log('[useAuth] Got Clerk token:', token ? `${token.substring(0, 50)}...` : 'null');
+          setAuthToken(token);
+
+          // Sync Clerk user with backend database
           const response = await fetch('/api/auth/clerk-sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -27,8 +43,6 @@ export function useAuth() {
           });
           
           if (response.ok) {
-            const data = await response.json();
-            setAuthToken(data.access_token);
             setSynced(true);
           }
         } catch (error) {
@@ -40,7 +54,15 @@ export function useAuth() {
       }
     };
     syncWithBackend();
-  }, [isSignedIn, isLoaded, user, synced]);
+  }, [isSignedIn, isLoaded, user, synced, getToken]);
 
-  return { isSignedIn, isLoaded, synced };
+  // Refresh token periodically (Clerk tokens expire)
+  useEffect(() => {
+    if (!isSignedIn) return;
+    
+    const interval = setInterval(updateToken, 50000); // Refresh every 50s
+    return () => clearInterval(interval);
+  }, [isSignedIn, updateToken]);
+
+  return { isSignedIn, isLoaded, synced, updateToken };
 }
