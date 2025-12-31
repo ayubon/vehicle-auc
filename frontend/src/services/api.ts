@@ -68,6 +68,7 @@ export const auctionsApi = {
     api.get(`/auctions/${auctionId}/bids`),
   getActive: () => api.get('/auctions?status=active'),
   getEndingSoon: () => api.get('/auctions?ending_soon=true'),
+  getMyBids: () => api.get('/bids/my'),
 };
 
 export const watchlistApi = {

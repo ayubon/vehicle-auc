@@ -13,6 +13,7 @@ export {
   usePlaceBid,
   getTimeRemaining 
 } from './useAuctions';
+export { useMyBids } from './useMyBids';
 export { useAuctionSSE, useMultiAuctionSSE } from './useAuctionSSE';
 export { 
   useWatchlist, 
