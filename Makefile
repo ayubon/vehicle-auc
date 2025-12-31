@@ -1,4 +1,4 @@
-.PHONY: help build run dev test lint fmt clean docker-up docker-down migrate sqlc
+.PHONY: help build run dev test lint fmt clean docker-up docker-down migrate sqlc test-e2e test-e2e-ui test-all seed seed-clear seed-sql
 
 # Default target
 help:
@@ -8,9 +8,12 @@ help:
 	@echo "  make build        - Build the server binary"
 	@echo "  make run          - Run the server"
 	@echo "  make dev          - Run with hot reload (requires air)"
-	@echo "  make test         - Run all tests"
+	@echo "  make test         - Run all Go tests"
 	@echo "  make test-unit    - Run unit tests only"
 	@echo "  make test-int     - Run integration tests only"
+	@echo "  make test-e2e     - Run E2E tests (Playwright)"
+	@echo "  make test-e2e-ui  - Run E2E tests with Playwright UI"
+	@echo "  make test-all     - Run all tests (Go + E2E)"
 	@echo "  make lint         - Run linters"
 	@echo "  make fmt          - Format code"
 	@echo "  make sqlc         - Generate sqlc code"
@@ -18,6 +21,9 @@ help:
 	@echo "  make docker-down  - Stop all services"
 	@echo "  make migrate      - Run migrations on dev DB"
 	@echo "  make migrate-test - Run migrations on test DB"
+	@echo "  make seed         - Seed database via API (requires running server)"
+	@echo "  make seed-clear   - Clear seed data via API"
+	@echo "  make seed-sql     - Run seed SQL directly"
 	@echo ""
 
 # Go commands
@@ -112,6 +118,19 @@ migrate-down-test:
 	@echo "Rolling back migrations on test database..."
 	psql $(TEST_DATABASE_URL) -f migrations-go/001_initial_schema.down.sql
 
+# Seed data
+seed:
+	@echo "Seeding database via API..."
+	curl -X POST http://localhost:8080/debug/seed
+
+seed-clear:
+	@echo "Clearing seed data via API..."
+	curl -X DELETE http://localhost:8080/debug/seed
+
+seed-sql:
+	@echo "Running seed SQL script..."
+	psql $(DATABASE_URL) -f migrations-go/002_seed_data.sql
+
 # Clean build artifacts
 clean:
 	rm -f $(BINARY_NAME)
@@ -137,4 +156,39 @@ setup: docker-up
 	@echo ""
 	@echo "Development environment ready!"
 	@echo "Run 'make run' to start the server"
+
+# E2E Tests (Playwright)
+# Requires: backend running on :8080, frontend will auto-start
+
+test-e2e:
+	@echo "Running E2E tests..."
+	@echo "Note: Backend must be running on localhost:8080"
+	cd frontend && npm run test:e2e
+
+test-e2e-ui:
+	@echo "Running E2E tests with UI..."
+	@echo "Note: Backend must be running on localhost:8080"
+	cd frontend && npm run test:e2e:ui
+
+test-e2e-debug:
+	@echo "Running E2E tests in debug mode..."
+	cd frontend && npm run test:e2e:debug
+
+# Run all tests (Go backend + E2E)
+test-all:
+	@echo "Running Go tests..."
+	$(GOTEST) -v ./...
+	@echo ""
+	@echo "Running E2E tests..."
+	cd frontend && npm run test:e2e
+
+# Frontend development
+frontend-dev:
+	cd frontend && npm run dev
+
+frontend-build:
+	cd frontend && npm run build
+
+frontend-install:
+	cd frontend && npm install
 
