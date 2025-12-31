@@ -111,7 +111,16 @@ export class TestAPI {
     vehicle_id: number;
     duration_hours?: number;
   }, userId?: number): Promise<{ id: number }> {
-    const response = await this.request('POST', '/auctions', data, userId);
+    // Calculate starts_at and ends_at from duration
+    const now = new Date();
+    const startsAt = now.toISOString();
+    const endsAt = new Date(now.getTime() + (data.duration_hours || 24) * 60 * 60 * 1000).toISOString();
+    
+    const response = await this.request('POST', '/auctions', {
+      vehicle_id: data.vehicle_id,
+      starts_at: startsAt,
+      ends_at: endsAt,
+    }, userId);
     const result = await response.json();
     return { id: result.auction_id };
   }
