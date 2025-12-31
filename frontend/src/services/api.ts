@@ -11,8 +11,10 @@ const api = axios.create({
 export const setAuthToken = (token: string | null) => {
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    console.log('[api] Auth token set:', `Bearer ${token.substring(0, 30)}...`);
   } else {
     delete api.defaults.headers.common['Authorization'];
+    console.log('[api] Auth token cleared');
   }
 };
 
@@ -48,6 +50,8 @@ export const vehiclesApi = {
     api.put(`/vehicles/${id}`, data),
   delete: (id: number) =>
     api.delete(`/vehicles/${id}`),
+  submit: (id: number) =>
+    api.post(`/vehicles/${id}/submit`),
   getUploadUrl: (vehicleId: number, filename: string, contentType: string) =>
     api.post(`/vehicles/${vehicleId}/upload-url`, { filename, content_type: contentType }),
   addImage: (vehicleId: number, s3Key: string, url: string, isPrimary: boolean) =>
@@ -62,6 +66,21 @@ export const auctionsApi = {
     api.post(`/auctions/${auctionId}/bid`, { amount }),
   getBids: (auctionId: number) =>
     api.get(`/auctions/${auctionId}/bids`),
+  getActive: () => api.get('/auctions?status=active'),
+  getEndingSoon: () => api.get('/auctions?ending_soon=true'),
+};
+
+export const watchlistApi = {
+  list: () => api.get('/watchlist'),
+  add: (auctionId: number) => api.post('/watchlist', { auction_id: auctionId }),
+  remove: (auctionId: number) => api.delete(`/watchlist/${auctionId}`),
+};
+
+export const notificationsApi = {
+  list: () => api.get('/notifications'),
+  markRead: (id: number) => api.put(`/notifications/${id}/read`),
+  markAllRead: () => api.put('/notifications/read-all'),
+  unreadCount: () => api.get('/notifications/unread-count'),
 };
 
 export const ordersApi = {

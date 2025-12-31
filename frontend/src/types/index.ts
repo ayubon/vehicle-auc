@@ -3,3 +3,4 @@
  */
 export * from './vehicle';
 export * from './form';
+export * from './auction';
