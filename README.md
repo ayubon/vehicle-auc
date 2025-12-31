@@ -379,20 +379,20 @@ erDiagram
     USERS ||--o{ WATCHLIST : watches
     USERS ||--o{ NOTIFICATIONS : receives
     
-    VEHICLES ||--o| AUCTIONS : "listed in"
+    VEHICLES ||--o| AUCTIONS : listed_in
     VEHICLES ||--o{ VEHICLE_IMAGES : has
     
     AUCTIONS ||--o{ BIDS : receives
-    AUCTIONS ||--o{ WATCHLIST : "watched by"
+    AUCTIONS ||--o{ WATCHLIST : watched_by
     
     USERS {
         bigint id PK
-        string clerk_user_id UK
-        string email UK
+        string clerk_user_id
+        string email
         string first_name
         string last_name
         string phone
-        user_role role
+        string role
         boolean email_verified
         boolean phone_verified
         boolean payment_verified
@@ -402,7 +402,7 @@ erDiagram
     VEHICLES {
         bigint id PK
         bigint seller_id FK
-        string vin UK
+        string vin
         int year
         string make
         string model
@@ -415,7 +415,7 @@ erDiagram
         string body_type
         text description
         numeric starting_price
-        vehicle_status status
+        string status
         timestamp created_at
     }
     
@@ -430,8 +430,8 @@ erDiagram
     
     AUCTIONS {
         bigint id PK
-        bigint vehicle_id FK UK
-        auction_status status
+        bigint vehicle_id FK
+        string status
         timestamp starts_at
         timestamp ends_at
         numeric current_bid
@@ -446,7 +446,7 @@ erDiagram
         bigint auction_id FK
         bigint user_id FK
         numeric amount
-        bid_status status
+        string status
         numeric previous_high_bid
         timestamp created_at
     }
@@ -464,7 +464,7 @@ erDiagram
         string type
         string title
         text message
-        jsonb data
+        string data
         boolean is_read
         timestamp created_at
     }
