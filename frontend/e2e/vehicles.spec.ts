@@ -7,10 +7,8 @@ test.describe('Vehicle Listing Flow', () => {
   });
 
   test('can navigate to vehicles page', async ({ page }) => {
-    await page.goto('/');
-    
-    // Click "Browse Inventory" button
-    await page.click('text=Browse Inventory');
+    // Navigate directly to vehicles page since homepage now shows live auctions
+    await page.goto('/vehicles');
     
     // Should be on vehicles page
     await expect(page).toHaveURL('/vehicles');
