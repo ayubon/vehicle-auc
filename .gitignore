@@ -1,63 +1,21 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
+# Go
+*.exe
+*.exe~
+*.dll
 *.so
+*.dylib
+*.test
+*.out
+/server
+/coverage.out
+/coverage.html
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# Go workspace
+go.work
+go.work.sum
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-test-results/
-
-# Translations
-*.mo
-*.pot
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+# Air (hot reload)
+tmp/
 
 # IDE
 .idea/
@@ -70,17 +28,12 @@ venv.bak/
 .DS_Store
 .AppleDouble
 .LSOverride
-
-# Thumbnails
 ._*
 
-# Flask
-instance/
-.webassets-cache
-
-# Celery
-celerybeat-schedule
-celerybeat.pid
+# Environments
+.env
+.env.local
+.env.*.local
 
 # Database
 *.db
@@ -90,20 +43,22 @@ celerybeat.pid
 *.log
 logs/
 
-# Static files (generated)
-app/static/dist/
-
-# Uploads
-uploads/
-
-# Playwright
+# Test artifacts
+test-results/
 playwright-report/
 playwright/.cache/
 
-# Node
+# Node (frontend)
 node_modules/
+frontend/dist/
 
 # Secrets
 *.pem
 *.key
 secrets/
+
+# Uploads
+uploads/
+
+# Vendor (if using)
+# vendor/

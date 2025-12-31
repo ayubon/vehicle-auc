@@ -18,7 +18,13 @@ npm run dev
 
 **Verify it's working:** Open http://localhost:3000
 
-> **Note:** The backend must be running on port 5001 for API calls to work.
+> **Note:** The Go backend must be running on port 8080 for API calls to work.
+> ```bash
+> # In project root
+> make docker-up  # Start PostgreSQL, Redis, Jaeger
+> make migrate    # Run migrations
+> make run        # Start backend on :8080
+> ```
 
 ---
 
@@ -70,7 +76,7 @@ frontend/src/
 │   ├── index.ts             # Exports all hooks
 │   ├── useVehicles.ts       # List + filter vehicles
 │   ├── useVehicle.ts        # Single vehicle fetch
-│   └── useAuth.ts           # Clerk → Flask JWT sync
+│   └── useAuth.ts           # Clerk auth sync
 │
 ├── services/
 │   └── api.ts               # Axios client + API functions
@@ -82,6 +88,39 @@ frontend/src/
 │
 └── lib/
     └── utils.ts             # Utility functions (cn, etc.)
+```
+
+---
+
+## Architecture Overview
+
+```mermaid
+flowchart TB
+    subgraph frontend [Frontend - React SPA :3000]
+        App[App.tsx]
+        Pages[Pages]
+        Hooks[TanStack Query Hooks]
+        API[API Service<br/>Axios]
+        SSE[EventSource<br/>SSE Client]
+    end
+    
+    subgraph backend [Go Backend :8080]
+        Router[Chi Router]
+        Handlers[HTTP Handlers]
+        BidEngine[Bid Engine]
+        SSEBroker[SSE Broker]
+    end
+    
+    subgraph auth [Auth]
+        Clerk[Clerk SSO]
+    end
+    
+    App --> Pages --> Hooks --> API
+    API -->|HTTP| Router --> Handlers
+    Pages --> SSE -->|SSE| SSEBroker
+    
+    App -->|Auth| Clerk
+    Clerk -->|JWT| Router
 ```
 
 ---
@@ -128,6 +167,8 @@ Routes are defined in `App.tsx`:
   <Route path="/vehicles" element={<VehiclesPage />} />
   <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
   <Route path="/vehicles/new" element={<VehicleCreatePage />} />
+  <Route path="/auctions" element={<AuctionsPage />} />
+  <Route path="/auctions/:id" element={<AuctionDetailPage />} />
 </Routes>
 ```
 
@@ -226,7 +267,7 @@ function VehicleForm() {
 
 ### 5. Authentication (Clerk)
 
-We use Clerk for SSO, synced to Flask JWT:
+We use Clerk for SSO, synced to the Go backend:
 
 ```tsx
 import { useAuth } from '@/hooks';
@@ -252,30 +293,146 @@ function Header() {
 ```
 
 **Auth flow:**
-1. User clicks Sign In → Clerk modal opens
-2. User authenticates via Google/GitHub
-3. `useAuth` hook syncs Clerk user to backend (`/api/auth/clerk-sync`)
-4. Backend returns Flask JWT token
-5. Token is stored and sent with all API requests
 
-### 6. API Client
+```mermaid
+sequenceDiagram
+    participant User
+    participant React
+    participant Clerk
+    participant GoBackend
+    participant Database
+
+    User->>React: Click Sign In
+    React->>Clerk: Open modal
+    User->>Clerk: Authenticate (Google/GitHub)
+    Clerk-->>React: JWT token
+    
+    React->>GoBackend: POST /api/auth/clerk-sync<br/>Authorization: Bearer {jwt}
+    GoBackend->>GoBackend: Validate JWT via JWKS
+    GoBackend->>Database: Upsert user record
+    Database-->>GoBackend: User created/updated
+    GoBackend-->>React: {user_id, email, role}
+    
+    React->>React: Store user in context
+    
+    Note over React,GoBackend: All subsequent requests include<br/>Authorization: Bearer {clerk_jwt}
+```
+
+### 6. Real-time Updates (SSE)
+
+For auction pages, we use Server-Sent Events:
+
+```tsx
+import { useEffect, useState } from 'react';
+
+function AuctionDetail({ auctionId }: { auctionId: number }) {
+  const [currentBid, setCurrentBid] = useState(0);
+  const [bidCount, setBidCount] = useState(0);
+
+  useEffect(() => {
+    const eventSource = new EventSource(`/api/auctions/${auctionId}/stream`);
+
+    eventSource.addEventListener('bid_accepted', (e) => {
+      const data = JSON.parse(e.data);
+      setCurrentBid(data.amount);
+      setBidCount(data.bid_count);
+    });
+
+    eventSource.addEventListener('auction_extended', (e) => {
+      const data = JSON.parse(e.data);
+      // Update end time, show snipe alert
+    });
+
+    eventSource.onerror = () => {
+      console.error('SSE connection error');
+      eventSource.close();
+    };
+
+    return () => eventSource.close();
+  }, [auctionId]);
+
+  return (
+    <div>
+      <p>Current Bid: ${currentBid}</p>
+      <p>Total Bids: {bidCount}</p>
+    </div>
+  );
+}
+```
+
+### 7. Placing Bids
+
+Bids are asynchronous — you get a ticket ID immediately:
+
+```tsx
+async function placeBid(auctionId: number, amount: number) {
+  // Submit bid
+  const response = await api.post(`/auctions/${auctionId}/bids`, { amount });
+  
+  // Response is 202 Accepted with ticket
+  const { ticket_id, status } = response.data;
+  // status = "queued"
+  
+  // Option 1: Wait for SSE event (recommended)
+  // The SSE stream will receive bid_accepted or bid_rejected
+  
+  // Option 2: Poll for result
+  const result = await api.get(`/bids/${ticket_id}/status`);
+  // result.status = "accepted" | "rejected" | "processing"
+}
+```
+
+### 8. API Client
 
 All API calls go through `services/api.ts`:
 
 ```tsx
-import { vehiclesApi } from '@/services/api';
+import axios from 'axios';
+import { useAuth } from '@clerk/clerk-react';
 
-// List vehicles with filters
-const vehicles = await vehiclesApi.getAll({ make: 'Toyota', year_min: 2020 });
+// Create axios instance
+const api = axios.create({
+  baseURL: '/api',  // Proxied to localhost:8080 by Vite
+});
 
-// Get single vehicle
-const vehicle = await vehiclesApi.getById(123);
+// Add auth token to requests
+api.interceptors.request.use(async (config) => {
+  const token = await getToken();  // From Clerk
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
-// Create vehicle (requires auth)
-const newVehicle = await vehiclesApi.create({ vin: '...', make: 'Toyota', ... });
+// API functions
+export const vehiclesApi = {
+  getAll: async (filters?: VehicleFilters) => {
+    const { data } = await api.get('/vehicles', { params: filters });
+    return data;
+  },
+  
+  getById: async (id: number) => {
+    const { data } = await api.get(`/vehicles/${id}`);
+    return data;
+  },
+  
+  create: async (payload: CreateVehicle) => {
+    const { data } = await api.post('/vehicles', payload);
+    return data;
+  },
+};
 
-// Upload image
-const { upload_url, s3_key } = await vehiclesApi.getUploadUrl(vehicleId, 'photo.jpg', 'image/jpeg');
+export const auctionsApi = {
+  getAll: async () => {
+    const { data } = await api.get('/auctions');
+    return data;
+  },
+  
+  placeBid: async (auctionId: number, amount: number) => {
+    const { data } = await api.post(`/auctions/${auctionId}/bids`, { amount });
+    return data;  // { ticket_id, status }
+  },
+};
 ```
 
 ---
@@ -329,38 +486,6 @@ export function useMyData(id: number) {
 export { useMyData } from './useMyData';
 ```
 
-### Adding a New API Function
-
-In `services/api.ts`:
-
-```tsx
-export const myApi = {
-  getAll: async () => {
-    const { data } = await api.get('/my-endpoint');
-    return data;
-  },
-  
-  create: async (payload: MyType) => {
-    const { data } = await api.post('/my-endpoint', payload);
-    return data;
-  },
-};
-```
-
-### Adding a shadcn/ui Component
-
-```bash
-# See available components
-npx shadcn@latest add --help
-
-# Add specific component
-npx shadcn@latest add dialog
-npx shadcn@latest add toast
-npx shadcn@latest add tabs
-```
-
-Components are added to `components/ui/`.
-
 ---
 
 ## Styling with Tailwind
@@ -393,63 +518,6 @@ import { cn } from '@/lib/utils';
 )}>
 ```
 
-### Theme Colors
-
-We use CSS variables for theming (defined in `index.css`):
-
-```tsx
-// Primary color
-<Button className="bg-primary text-primary-foreground">
-
-// Muted text
-<span className="text-muted-foreground">
-
-// Destructive (red)
-<Button variant="destructive">Delete</Button>
-```
-
----
-
-## TypeScript Types
-
-### Defining Types
-
-```tsx
-// types/vehicle.ts
-export interface Vehicle {
-  id: number;
-  vin: string;
-  year: number;
-  make: string;
-  model: string;
-  starting_price: number;
-  images: VehicleImage[];
-}
-
-export interface VehicleImage {
-  id: number;
-  url: string;
-  is_primary: boolean;
-}
-
-export interface VehicleFilters {
-  make?: string;
-  year_min?: number;
-  year_max?: number;
-  max_price?: number;
-}
-```
-
-### Using Types
-
-```tsx
-import { Vehicle, VehicleFilters } from '@/types';
-
-function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
-  return <div>{vehicle.year} {vehicle.make} {vehicle.model}</div>;
-}
-```
-
 ---
 
 ## File Upload Pattern
@@ -474,11 +542,26 @@ function VehicleForm({ vehicleId }: { vehicleId: number }) {
 ```
 
 **How it works:**
-1. User drops/selects files
-2. Component calls `POST /api/vehicles/{id}/upload-url` to get presigned S3 URL
-3. Component uploads file directly to S3
-4. Component calls `POST /api/vehicles/{id}/images` to register the image
-5. Image appears in the grid
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Component
+    participant GoBackend
+    participant S3
+
+    User->>Component: Drop/select image file
+    Component->>GoBackend: POST /api/vehicles/{id}/upload-url<br/>{filename, content_type}
+    GoBackend-->>Component: {upload_url, s3_key}
+    
+    Component->>S3: PUT {upload_url}<br/>Binary file data
+    S3-->>Component: 200 OK
+    
+    Component->>GoBackend: POST /api/vehicles/{id}/images<br/>{s3_key, is_primary}
+    GoBackend-->>Component: {image_id, url}
+    
+    Component->>Component: Add to image grid
+```
 
 ---
 
@@ -506,11 +589,13 @@ Check browser console for React errors and API failures.
 
 | Issue | Solution |
 |-------|----------|
-| `CORS error` | Backend not running or wrong port |
-| `401 Unauthorized` | Not signed in, or JWT expired |
+| `CORS error` | Backend not running on port 8080 |
+| `401 Unauthorized` | Not signed in, or Clerk JWT expired |
+| `502 Bad Gateway` | Backend crashed, check `make run` terminal |
 | `Module not found` | Check import path, use `@/` alias |
 | Styles not applying | Check Tailwind class names |
 | Form not submitting | Check Zod validation errors |
+| SSE not connecting | Check `/api/auctions/{id}/stream` endpoint |
 
 ---
 
@@ -531,6 +616,7 @@ Deploy `dist/` to any static host (Netlify, Vercel, S3, etc.).
 
 ## Questions?
 
-- Check existing pages for patterns (especially `VehicleCreatePage.tsx`)
+- Check existing pages for patterns (especially `AuctionDetailPage.tsx`)
 - Look at `services/api.ts` for API call examples
+- Check the main [README.md](../README.md) for backend API reference
 - Run `npm run dev` and experiment!

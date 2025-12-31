@@ -1,466 +1,744 @@
 # Backend Onboarding Guide
 
-Welcome to the Vehicle Auction Platform backend! This guide will get you up to speed quickly.
+Welcome to the Vehicle Auction Platform Go backend! This guide covers everything you need to contribute effectively.
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Start dependencies (MySQL + Redis)
-docker compose up -d
+# From project root
 
-# 2. Set up Python environment
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+# 1. Start infrastructure
+make docker-up
 
-# 3. Copy environment variables
-cp .env.example .env
-# Edit .env with your credentials
+# 2. Run migrations
+make migrate
 
-# 4. Run database migrations
-flask db upgrade
+# 3. Start the server
+make run
 
-# 5. Start the server
-flask run --port 5001
+# Server runs on http://localhost:8080
 ```
 
 **Verify it's working:**
 ```bash
-curl http://localhost:5001/health
-# {"status": "healthy"}
+curl http://localhost:8080/health
+# {"status":"healthy","checks":{"database":"healthy"}}
 ```
 
 ---
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Flask Application                        │
-├─────────────────────────────────────────────────────────────┤
-│  routes/           │  models/           │  services/         │
-│  (API endpoints)   │  (Database)        │  (External APIs)   │
-├─────────────────────────────────────────────────────────────┤
-│                     extensions.py                            │
-│            (db, jwt, socketio, redis, metrics)              │
-└─────────────────────────────────────────────────────────────┘
-                              │
-              ┌───────────────┼───────────────┐
-              ▼               ▼               ▼
-         MySQL 8.x        Redis           AWS S3
+```mermaid
+flowchart TB
+    subgraph entry [Entry Point]
+        Main[cmd/server/main.go]
+    end
+
+    subgraph middleware [Middleware Chain]
+        Recovery[Recovery]
+        RequestID[Request ID]
+        Tracing[OpenTelemetry]
+        Logging[slog JSON]
+        CORS[CORS]
+        Auth[Clerk JWT Auth]
+    end
+
+    subgraph handlers [HTTP Handlers]
+        direction LR
+        H1[Vehicle]
+        H2[Auction]
+        H3[Bid]
+        H4[Auth]
+        H5[SSE]
+        H6[Watchlist]
+        H7[Notification]
+        H8[Image]
+        H9[VIN]
+        H10[Health]
+        H11[Debug]
+    end
+
+    subgraph core [Core Components]
+        BidEngine[Bid Engine<br/>Goroutines + Channels]
+        SSEBroker[SSE Broker<br/>Fan-out]
+        Repo[Repository<br/>sqlc generated]
+    end
+
+    subgraph infra [Infrastructure]
+        PG[(PostgreSQL)]
+        Redis[(Redis)]
+        S3[S3]
+        Clerk[Clerk]
+        Jaeger[Jaeger]
+        Sentry[Sentry]
+    end
+
+    Main --> middleware
+    middleware --> handlers
+    handlers --> core
+    core --> infra
 ```
 
 ---
 
-## Directory Structure
+## Project Structure
 
 ```
-app/
-├── __init__.py          # App factory - creates Flask app
-├── config.py            # Environment configs (dev/test/prod)
-├── constants.py         # Enums for status values
-├── extensions.py        # Flask extensions initialization
-├── custom_metrics.py    # Prometheus metrics
+vehicle-auc/
+├── cmd/server/
+│   └── main.go              # Entry point, wire everything
 │
-├── models/              # SQLAlchemy ORM models
-│   ├── __init__.py      # Exports all models
-│   ├── user.py          # User, Role, SellerProfile
-│   ├── vehicle.py       # Vehicle, VehicleImage, VehicleDocument
-│   ├── auction.py       # Auction, Bid, Offer
-│   ├── order.py         # Order, Invoice, Payment, Refund
-│   ├── fulfillment.py   # TitleTransfer, TransportOrder
-│   └── misc.py          # Notification, SavedSearch, Watchlist
+├── internal/
+│   ├── bidengine/           # Bid processing
+│   │   ├── engine.go        # Queue + dispatcher
+│   │   ├── worker.go        # Per-auction workers
+│   │   ├── processor.go     # OCC logic
+│   │   ├── errors.go        # Custom errors
+│   │   └── engine_test.go   # Unit tests
+│   │
+│   ├── config/
+│   │   └── config.go        # Env var loading
+│   │
+│   ├── domain/
+│   │   └── types.go         # Shared types (BidEvent, etc.)
+│   │
+│   ├── handler/
+│   │   ├── auctions.go
+│   │   ├── auth.go
+│   │   ├── bids.go
+│   │   ├── debug.go
+│   │   ├── health.go
+│   │   ├── images.go
+│   │   ├── notifications.go
+│   │   ├── sse.go
+│   │   ├── vehicles.go
+│   │   ├── vin.go
+│   │   └── watchlist.go
+│   │
+│   ├── metrics/
+│   │   └── metrics.go       # Prometheus metrics
+│   │
+│   ├── middleware/
+│   │   ├── auth.go          # Clerk JWT validation
+│   │   ├── logging.go       # Request logging
+│   │   ├── requestid.go     # X-Request-ID
+│   │   ├── tracing.go       # OpenTelemetry spans
+│   │   └── middleware_test.go
+│   │
+│   ├── realtime/
+│   │   ├── broker.go        # SSE broker
+│   │   └── broker_test.go
+│   │
+│   ├── repository/
+│   │   └── queries/         # SQL files for sqlc
+│   │       ├── users.sql
+│   │       ├── vehicles.sql
+│   │       ├── auctions.sql
+│   │       ├── bids.sql
+│   │       ├── watchlist.sql
+│   │       └── notifications.sql
+│   │
+│   └── tracing/
+│       └── tracing.go       # OpenTelemetry setup
 │
-├── routes/              # API endpoints
-│   ├── __init__.py      # Blueprint registration
-│   ├── auth.py          # /api/auth/* - JWT authentication
-│   └── api/             # /api/* - Domain routes
-│       ├── __init__.py  # API blueprint
-│       ├── vehicles.py  # Vehicle CRUD
-│       ├── images.py    # S3 upload URLs
-│       ├── auctions.py  # Bid history
-│       └── vin.py       # VIN decoding
+├── migrations-go/
+│   ├── 001_initial_schema.up.sql
+│   └── 001_initial_schema.down.sql
 │
-└── services/            # External integrations
-    ├── __init__.py
-    ├── s3.py            # AWS S3 presigned URLs
-    └── clearvin.py      # VIN decoding API
+├── tests/
+│   ├── fixtures/
+│   │   ├── db.go            # Test DB setup
+│   │   └── fixtures.go      # Test data helpers
+│   └── integration/
+│       ├── auctions_test.go
+│       ├── auth_test.go
+│       ├── bids_test.go
+│       ├── health_test.go
+│       ├── images_test.go
+│       ├── notifications_test.go
+│       ├── vehicles_test.go
+│       ├── vin_test.go
+│       └── watchlist_test.go
+│
+├── go.mod
+├── go.sum
+├── sqlc.yaml
+├── Makefile
+├── Dockerfile
+└── docker-compose.yml
 ```
 
 ---
 
 ## Key Concepts
 
-### 1. App Factory Pattern
+### 1. Handler Pattern
 
-The app is created via `create_app()` in `app/__init__.py`:
+Handlers are HTTP endpoint implementations. Each handler struct holds its dependencies:
 
-```python
-from app import create_app
+```go
+// internal/handler/vehicles.go
+type VehicleHandler struct {
+    db     *pgxpool.Pool
+    logger *slog.Logger
+}
 
-app = create_app()  # Uses FLASK_ENV to pick config
-app = create_app('testing')  # Or specify explicitly
-```
+func NewVehicleHandler(db *pgxpool.Pool, logger *slog.Logger) *VehicleHandler {
+    return &VehicleHandler{db: db, logger: logger}
+}
 
-This allows different configs for dev/test/prod and makes testing easier.
-
-### 2. Blueprints
-
-Routes are organized into blueprints:
-
-| Blueprint | URL Prefix | Purpose |
-|-----------|------------|---------|
-| `main_bp` | `/` | Health checks, metrics |
-| `auth_bp` | `/api/auth` | Authentication |
-| `api_bp` | `/api` | All API endpoints |
-
-### 3. Models & Serialization
-
-Each model has a `to_dict()` method for JSON serialization:
-
-```python
-# In routes, return model data like this:
-vehicle = db.session.get(Vehicle, vehicle_id)
-return jsonify(vehicle.to_dict())
-
-# Or for lists:
-vehicles = Vehicle.query.filter_by(status='active').all()
-return jsonify([v.to_dict() for v in vehicles])
-```
-
-### 4. Status Constants
-
-Use enums from `constants.py` instead of magic strings:
-
-```python
-from app.constants import VehicleStatus, AuctionStatus
-
-# Good ✅
-vehicle.status = VehicleStatus.ACTIVE.value
-
-# Bad ❌
-vehicle.status = 'active'
-```
-
-### 5. Authentication
-
-We use **Clerk** for SSO on the frontend, synced to **Flask-JWT-Extended**:
-
-```python
-from flask_jwt_extended import jwt_required, current_user
-
-@api_bp.route('/vehicles', methods=['POST'])
-@jwt_required()  # Requires valid JWT token
-def create_vehicle():
-    # current_user is the authenticated User object
-    vehicle = Vehicle(seller_id=current_user.id, ...)
-```
-
-**Auth flow:**
-1. User signs in via Clerk (frontend)
-2. Frontend calls `POST /api/auth/clerk-sync` with Clerk user data
-3. Backend creates/finds user, returns Flask JWT
-4. Frontend includes JWT in `Authorization: Bearer <token>` header
-
----
-
-## Common Tasks
-
-### Adding a New API Endpoint
-
-1. **Choose the right file** in `routes/api/`:
-   - Vehicle-related → `vehicles.py`
-   - New domain → create new file
-
-2. **Add the route:**
-```python
-# routes/api/vehicles.py
-from . import api_bp
-
-@api_bp.route('/vehicles/<int:id>/archive', methods=['POST'])
-@jwt_required()
-def archive_vehicle(id):
-    vehicle = db.session.get(Vehicle, id)
-    if not vehicle:
-        return jsonify({'error': 'Not found'}), 404
-    if vehicle.seller_id != current_user.id:
-        return jsonify({'error': 'Not authorized'}), 403
+func (h *VehicleHandler) ListVehicles(w http.ResponseWriter, r *http.Request) {
+    ctx := r.Context()
     
-    vehicle.status = VehicleStatus.ARCHIVED.value
-    db.session.commit()
-    return jsonify({'message': 'Vehicle archived'})
+    // Parse query params
+    limit := parseIntOr(r.URL.Query().Get("limit"), 20)
+    offset := parseIntOr(r.URL.Query().Get("offset"), 0)
+    
+    // Query database
+    rows, err := h.db.Query(ctx, `
+        SELECT id, vin, year, make, model, starting_price
+        FROM vehicles
+        WHERE status = 'approved'
+        ORDER BY created_at DESC
+        LIMIT $1 OFFSET $2
+    `, limit, offset)
+    if err != nil {
+        h.jsonError(w, "database error", http.StatusInternalServerError)
+        return
+    }
+    defer rows.Close()
+    
+    // Scan and return
+    var vehicles []Vehicle
+    for rows.Next() {
+        var v Vehicle
+        rows.Scan(&v.ID, &v.VIN, &v.Year, &v.Make, &v.Model, &v.StartingPrice)
+        vehicles = append(vehicles, v)
+    }
+    
+    h.jsonResponse(w, vehicles, http.StatusOK)
+}
 ```
 
-### Adding a New Model
+### 2. Middleware
 
-1. **Create model** in `models/`:
-```python
-# models/example.py
-from ..extensions import db
+Middleware wraps handlers to add cross-cutting concerns:
 
-class Example(db.Model):
-    __tablename__ = 'examples'
-    
-    id = db.Column(db.BigInteger, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=db.func.now())
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
+```go
+// internal/middleware/logging.go
+func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            start := time.Now()
+            
+            // Wrap response writer to capture status
+            ww := &responseWriter{ResponseWriter: w, status: 200}
+            
+            // Call next handler
+            next.ServeHTTP(ww, r)
+            
+            // Log request
+            logger.Info("http_request",
+                slog.String("method", r.Method),
+                slog.String("path", r.URL.Path),
+                slog.Int("status", ww.status),
+                slog.Duration("duration", time.Since(start)),
+                slog.String("request_id", GetRequestID(r.Context())),
+            )
+        })
+    }
+}
+```
+
+**Middleware order matters!** In `main.go`:
+
+```go
+r := chi.NewRouter()
+r.Use(chimw.Recoverer)      // 1. Catch panics
+r.Use(middleware.RequestID) // 2. Generate request ID
+r.Use(middleware.Tracing)   // 3. Start trace span
+r.Use(middleware.Logging)   // 4. Log requests
+r.Use(cors.Handler(...))    // 5. CORS headers
+```
+
+### 3. Bid Engine
+
+The bid engine processes bids asynchronously using goroutines:
+
+```mermaid
+flowchart LR
+    subgraph API
+        BidHandler[Bid Handler]
+    end
+
+    subgraph Engine [Bid Engine]
+        Queue[Bid Queue<br/>chan BidRequest]
+        Dispatcher[Dispatcher<br/>Goroutine]
+        
+        subgraph Workers [Workers Pool]
+            W1[Worker 123]
+            W2[Worker 456]
+            W3[Worker 789]
+        end
+        
+        Results[Results Map<br/>ticket → chan]
+    end
+
+    subgraph DB [PostgreSQL]
+        Auctions[(auctions)]
+        Bids[(bids)]
+    end
+
+    BidHandler -->|Submit| Queue
+    Queue --> Dispatcher
+    Dispatcher -->|Route by auction_id| Workers
+    Workers -->|OCC Update| Auctions
+    Workers -->|Insert| Bids
+    Workers -->|Signal| Results
+    Results -->|Poll| BidHandler
+```
+
+**Key files:**
+- `engine.go` - Queue and dispatcher
+- `worker.go` - Per-auction worker goroutine
+- `processor.go` - OCC update logic
+
+### 4. OCC (Optimistic Concurrency Control)
+
+We use a `version` column to detect concurrent modifications:
+
+```go
+// internal/bidengine/processor.go
+func (p *Processor) ProcessBid(ctx context.Context, req BidRequest) (*BidResult, error) {
+    for attempt := 0; attempt < p.maxRetries; attempt++ {
+        // 1. Read current state
+        var currentBid decimal.Decimal
+        var version int
+        err := p.db.QueryRow(ctx, `
+            SELECT current_bid, version 
+            FROM auctions 
+            WHERE id = $1 AND status = 'active'
+        `, req.AuctionID).Scan(&currentBid, &version)
+        if err != nil {
+            return nil, ErrAuctionNotFound
         }
-```
 
-2. **Export it** in `models/__init__.py`:
-```python
-from .example import Example
-__all__ = [..., 'Example']
-```
+        // 2. Validate bid
+        if req.Amount.LessThanOrEqual(currentBid) {
+            return &BidResult{Status: "rejected", Reason: "bid too low"}, nil
+        }
 
-3. **Create migration:**
-```bash
-flask db migrate -m "Add examples table"
-flask db upgrade
-```
-
-### Adding a New Service
-
-1. **Create service** in `services/`:
-```python
-# services/example_api.py
-import os
-import structlog
-
-logger = structlog.get_logger(__name__)
-
-class ExampleService:
-    def __init__(self):
-        self.api_key = os.environ.get('EXAMPLE_API_KEY')
-        self.enabled = bool(self.api_key)
+        // 3. Attempt OCC update
+        result, err := p.db.Exec(ctx, `
+            UPDATE auctions
+            SET current_bid = $1, 
+                current_bid_user_id = $2,
+                bid_count = bid_count + 1,
+                version = version + 1
+            WHERE id = $3 AND version = $4
+        `, req.Amount, req.UserID, req.AuctionID, version)
         
-        if not self.enabled:
-            logger.warning("Example API key not configured")
+        if result.RowsAffected() == 0 {
+            // Version mismatch - someone else updated, retry
+            time.Sleep(p.retryBackoff)
+            continue
+        }
+
+        // 4. Record bid in history
+        p.db.Exec(ctx, `
+            INSERT INTO bids (auction_id, user_id, amount, status, previous_high_bid)
+            VALUES ($1, $2, $3, 'accepted', $4)
+        `, req.AuctionID, req.UserID, req.Amount, currentBid)
+
+        return &BidResult{Status: "accepted"}, nil
+    }
     
-    def do_something(self, data):
-        if not self.enabled:
-            return {'mock': True, 'data': data}
-        
-        # Real API call here
-        ...
-
-example_service = ExampleService()
+    return nil, ErrMaxRetriesExceeded
+}
 ```
 
-2. **Export it** in `services/__init__.py`:
-```python
-from .example_api import example_service
+### 5. SSE Broker
+
+The SSE broker manages client connections and broadcasts events:
+
+```go
+// internal/realtime/broker.go
+type Broker struct {
+    subscribers map[int64]map[chan SSEMessage]struct{} // auction_id → clients
+    broadcast   chan SSEMessage
+    subscribe   chan subscription
+    unsubscribe chan subscription
+    mu          sync.RWMutex
+    logger      *slog.Logger
+}
+
+func (b *Broker) Start() {
+    go func() {
+        for {
+            select {
+            case sub := <-b.subscribe:
+                b.addSubscriber(sub.auctionID, sub.ch)
+                
+            case sub := <-b.unsubscribe:
+                b.removeSubscriber(sub.auctionID, sub.ch)
+                
+            case msg := <-b.broadcast:
+                b.fanOut(msg)
+            }
+        }
+    }()
+}
+
+func (b *Broker) Broadcast(msg SSEMessage) {
+    b.broadcast <- msg
+}
 ```
 
 ---
 
 ## Database
 
-### Running Migrations
+### Connecting
 
-```bash
-# Create a new migration after model changes
-flask db migrate -m "Description of changes"
+We use `pgx` for PostgreSQL:
 
-# Apply migrations
-flask db upgrade
+```go
+// In main.go
+dbConfig, _ := pgxpool.ParseConfig(cfg.DatabaseURL)
+dbConfig.MaxConns = 25
+dbConfig.MinConns = 5
 
-# Rollback one migration
-flask db downgrade
+db, err := pgxpool.NewWithConfig(ctx, dbConfig)
 ```
 
-### Useful Queries
+### Queries
 
-```python
-# Get by ID
-vehicle = db.session.get(Vehicle, 123)
+Write raw SQL in handlers or use sqlc:
 
-# Filter
-active_vehicles = Vehicle.query.filter_by(status='active').all()
+```go
+// Raw SQL (simple queries)
+var count int
+db.QueryRow(ctx, "SELECT COUNT(*) FROM vehicles").Scan(&count)
 
-# Complex filter
-from sqlalchemy import and_
-vehicles = Vehicle.query.filter(
-    and_(
-        Vehicle.year >= 2020,
-        Vehicle.starting_price <= 50000
-    )
-).all()
+// sqlc generated (complex queries)
+// Define in internal/repository/queries/vehicles.sql:
+// -- name: GetVehicleByID :one
+// SELECT * FROM vehicles WHERE id = $1;
 
-# Join
-from app.models import Vehicle, VehicleImage
-vehicles_with_images = db.session.query(Vehicle).join(VehicleImage).all()
+// Then use generated code:
+vehicle, err := queries.GetVehicleByID(ctx, db, vehicleID)
+```
+
+### Migrations
+
+SQL files in `migrations-go/`:
+
+```bash
+# Apply migrations
+make migrate
+
+# Rollback
+make migrate-down
+
+# For test database
+make migrate-test
+```
+
+---
+
+## Authentication
+
+### Clerk JWT Validation
+
+```go
+// internal/middleware/auth.go
+type ClerkAuth struct {
+    jwksURL string
+    keySet  jwk.Set
+    logger  *slog.Logger
+}
+
+func (a *ClerkAuth) Middleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // Extract token from Authorization header
+        token := extractBearerToken(r)
+        if token == "" {
+            http.Error(w, "unauthorized", http.StatusUnauthorized)
+            return
+        }
+
+        // Validate JWT signature using Clerk JWKS
+        claims, err := a.validateToken(token)
+        if err != nil {
+            http.Error(w, "invalid token", http.StatusUnauthorized)
+            return
+        }
+
+        // Add user info to context
+        ctx := context.WithValue(r.Context(), userIDKey, claims.UserID)
+        next.ServeHTTP(w, r.WithContext(ctx))
+    })
+}
+```
+
+### Getting User in Handlers
+
+```go
+func (h *Handler) MyHandler(w http.ResponseWriter, r *http.Request) {
+    userID := middleware.GetUserID(r.Context())
+    if userID == 0 {
+        // Not authenticated
+    }
+}
 ```
 
 ---
 
 ## Testing
 
-```bash
-# Run all tests
-pytest
+### Unit Tests
 
-# Run with verbose output
-pytest -v
+Test individual components in isolation:
 
-# Run specific test file
-pytest tests/unit/test_models.py
+```go
+// internal/bidengine/engine_test.go
+func TestBidEngine_ProcessBid_Success(t *testing.T) {
+    db := fixtures.SetupTestDB(t)
+    logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+    broker := realtime.NewBroker(logger)
+    
+    engine := NewEngine(db, logger, broker, WithSyncMode(true))
+    engine.Start()
+    defer engine.Stop()
 
-# Run with coverage
-pytest --cov=app --cov-report=html
+    // Create test data
+    userID := fixtures.BuyerUser(t, db)
+    vehicleID := fixtures.TestVehicle(t, db, fixtures.SellerUser(t, db))
+    auctionID := fixtures.TestAuction(t, db, vehicleID)
+
+    // Submit bid
+    err := engine.Submit(BidRequest{
+        TicketID:  uuid.New().String(),
+        AuctionID: auctionID,
+        UserID:    userID,
+        Amount:    decimal.NewFromFloat(150.00),
+    })
+    require.NoError(t, err)
+
+    // Verify auction updated
+    var currentBid float64
+    db.QueryRow(context.Background(), 
+        "SELECT current_bid FROM auctions WHERE id = $1", 
+        auctionID,
+    ).Scan(&currentBid)
+    
+    assert.Equal(t, 150.00, currentBid)
+}
 ```
 
-### Writing Tests
+### Integration Tests
 
-```python
-# tests/unit/test_example.py
-import pytest
-from app.models import Vehicle
+Test full HTTP request/response cycles:
 
-def test_vehicle_to_dict(app):
-    """Test Vehicle serialization."""
-    with app.app_context():
-        vehicle = Vehicle(
-            vin='12345678901234567',
-            year=2020,
-            make='Toyota',
-            model='Camry',
-        )
-        
-        data = vehicle.to_dict()
-        
-        assert data['year'] == 2020
-        assert data['make'] == 'Toyota'
+```go
+// tests/integration/vehicles_test.go
+func TestListVehicles(t *testing.T) {
+    db := fixtures.SetupTestDBWithMigrations(t)
+    
+    // Create test data
+    sellerID := fixtures.SellerUser(t, db)
+    fixtures.TestVehicle(t, db, sellerID)
+    fixtures.TestVehicle(t, db, sellerID)
+
+    // Setup handler
+    handler := handler.NewVehicleHandler(db, slog.Default())
+    r := chi.NewRouter()
+    r.Get("/api/vehicles", handler.ListVehicles)
+
+    // Make request
+    req := httptest.NewRequest("GET", "/api/vehicles", nil)
+    rec := httptest.NewRecorder()
+    r.ServeHTTP(rec, req)
+
+    // Assert response
+    assert.Equal(t, http.StatusOK, rec.Code)
+    
+    var response map[string]interface{}
+    json.Unmarshal(rec.Body.Bytes(), &response)
+    assert.Equal(t, float64(2), response["total"])
+}
+```
+
+### Running Tests
+
+```bash
+# All tests
+make test
+
+# Integration tests only
+make test-int
+
+# Specific package
+go test -v ./internal/bidengine/...
+
+# With coverage
+make test-cover
 ```
 
 ---
 
-## Environment Variables
+## Adding a New Feature
 
-Key variables in `.env`:
+### 1. Add Database Schema
 
+```sql
+-- migrations-go/002_my_feature.up.sql
+CREATE TABLE my_table (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### 2. Add SQL Queries (if using sqlc)
+
+```sql
+-- internal/repository/queries/my_table.sql
+-- name: CreateMyThing :one
+INSERT INTO my_table (name) VALUES ($1) RETURNING *;
+
+-- name: GetMyThing :one
+SELECT * FROM my_table WHERE id = $1;
+```
+
+Then run:
 ```bash
-# Flask
-FLASK_APP=app
-FLASK_ENV=development
-SECRET_KEY=your-secret-key
+make sqlc
+```
 
-# Database
-DATABASE_URL=mysql+pymysql://user:pass@localhost:3306/vehicle_auc
+### 3. Create Handler
 
-# Redis
-REDIS_URL=redis://localhost:6379/0
+```go
+// internal/handler/my_feature.go
+type MyHandler struct {
+    db     *pgxpool.Pool
+    logger *slog.Logger
+}
 
-# JWT
-JWT_SECRET_KEY=your-jwt-secret
+func NewMyHandler(db *pgxpool.Pool, logger *slog.Logger) *MyHandler {
+    return &MyHandler{db: db, logger: logger}
+}
 
-# AWS S3
-AWS_ACCESS_KEY_ID=xxx
-AWS_SECRET_ACCESS_KEY=xxx
-AWS_S3_BUCKET=vehicle-auc-images
-AWS_REGION=us-east-1
+func (h *MyHandler) Create(w http.ResponseWriter, r *http.Request) {
+    // Implementation
+}
+```
 
-# ClearVIN (optional - has mock fallback)
-CLEARVIN_API_KEY=xxx
+### 4. Wire in main.go
+
+```go
+// cmd/server/main.go
+myHandler := handler.NewMyHandler(db, logger)
+
+r.Route("/api", func(r chi.Router) {
+    // ... existing routes ...
+    
+    r.Group(func(r chi.Router) {
+        r.Use(clerkAuth.Middleware)
+        r.Post("/my-thing", myHandler.Create)
+    })
+})
+```
+
+### 5. Add Tests
+
+```go
+// tests/integration/my_feature_test.go
+func TestMyFeature_Create(t *testing.T) {
+    // ...
+}
 ```
 
 ---
 
 ## Debugging
 
-### Logs
+### Structured Logs
 
-Structured JSON logs via `structlog`:
+All logs are JSON with correlation IDs:
 
-```python
-import structlog
-logger = structlog.get_logger(__name__)
-
-logger.info("Something happened", vehicle_id=123, user_id=456)
-# Output: {"event": "Something happened", "vehicle_id": 123, "user_id": 456, ...}
+```json
+{
+  "time": "2025-01-01T12:00:00Z",
+  "level": "INFO",
+  "msg": "http_request",
+  "request_id": "abc-123",
+  "trace_id": "def-456",
+  "method": "POST",
+  "path": "/api/auctions/123/bids",
+  "status": 202,
+  "duration": "5ms"
+}
 ```
 
-### Request Tracing
+### Debug Endpoints
 
-Every request gets a `request_id` in logs and response headers:
+In development:
 
 ```bash
-curl -i http://localhost:5001/api/vehicles
-# X-Request-ID: a1b2c3d4
+# Bid engine internal state
+curl http://localhost:8080/debug/bidengine
+
+# SSE broker connections  
+curl http://localhost:8080/debug/sse
+
+# All stats
+curl http://localhost:8080/debug/stats
 ```
 
-Search logs by this ID to trace a request.
+### Jaeger Tracing
 
-### Common Issues
+View distributed traces at http://localhost:16686
 
-| Issue | Solution |
-|-------|----------|
-| `401 Unauthorized` | Check JWT token in `Authorization: Bearer <token>` header |
-| `403 Forbidden` | User doesn't own the resource |
-| `500 Internal Server Error` | Check Flask logs in terminal |
-| Database connection error | Is MySQL running? `docker compose up -d` |
+### Delve Debugger
+
+```bash
+# Install
+go install github.com/go-delve/delve/cmd/dlv@latest
+
+# Debug
+dlv debug ./cmd/server
+
+# Or attach to running process
+dlv attach $(pgrep server)
+```
 
 ---
 
-## API Reference
+## Common Tasks
 
-### Authentication
-
-```bash
-# Sync Clerk user → get JWT
-POST /api/auth/clerk-sync
-Body: {"clerk_user_id": "...", "email": "...", "first_name": "...", "last_name": "..."}
-Response: {"access_token": "...", "refresh_token": "...", "user": {...}}
-
-# Get current user
-GET /api/auth/me
-Headers: Authorization: Bearer <token>
-```
-
-### Vehicles
-
-```bash
-# List vehicles
-GET /api/vehicles?make=Toyota&year_min=2020&max_price=50000
-
-# Get vehicle
-GET /api/vehicles/123
-
-# Create vehicle (requires auth)
-POST /api/vehicles
-Headers: Authorization: Bearer <token>
-Body: {"vin": "...", "year": 2020, "make": "Toyota", ...}
-
-# Submit for review → active
-POST /api/vehicles/123/submit
-Headers: Authorization: Bearer <token>
-
-# Get S3 upload URL
-POST /api/vehicles/123/upload-url
-Headers: Authorization: Bearer <token>
-Body: {"filename": "photo.jpg", "content_type": "image/jpeg"}
-```
-
-### Health
-
-```bash
-GET /health           # Basic health
-GET /health/detailed  # DB + Redis status
-GET /metrics          # Prometheus metrics
-```
+| Task | Command |
+|------|---------|
+| Start server | `make run` |
+| Hot reload | `make dev` |
+| Run tests | `make test` |
+| Run integration tests | `make test-int` |
+| Apply migrations | `make migrate` |
+| Generate sqlc | `make sqlc` |
+| Format code | `make fmt` |
+| Lint code | `make lint` |
+| Build binary | `make build` |
+| Docker up | `make docker-up` |
+| Docker down | `make docker-down` |
 
 ---
 
 ## Questions?
 
-- Check the main `README.md` for project overview
-- Look at existing code in `routes/api/vehicles.py` for patterns
-- Run tests to understand expected behavior
+- Check existing handlers for patterns
+- Look at tests for usage examples
+- Check the main [README.md](../README.md) for architecture details
+- Ask in the team chat!

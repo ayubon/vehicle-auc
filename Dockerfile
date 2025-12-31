@@ -1,30 +1,41 @@
-FROM python:3.11-slim
+# Build stage
+FROM golang:1.23-alpine AS builder
+
+RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    default-libmysqlclient-dev \
-    pkg-config \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libgdk-pixbuf2.0-0 \
-    libffi-dev \
-    shared-mime-info \
-    && rm -rf /var/lib/apt/lists/*
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
 
-# Copy requirements first for caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
+# Copy source
 COPY . .
 
-# Set environment variables
-ENV FLASK_APP=app
-ENV PYTHONUNBUFFERED=1
+# Build
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -o /app/server \
+    ./cmd/server
 
-EXPOSE 5000
+# Final stage
+FROM alpine:3.19
 
-CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "-b", "0.0.0.0:5000", "app:create_app()"]
+RUN apk add --no-cache ca-certificates tzdata
+
+WORKDIR /app
+
+# Copy binary
+COPY --from=builder /app/server .
+
+# Copy migrations for potential runtime use
+COPY --from=builder /app/migrations-go ./migrations
+
+# Create non-root user
+RUN adduser -D -g '' appuser
+USER appuser
+
+EXPOSE 8080
+
+ENTRYPOINT ["./server"]
+
