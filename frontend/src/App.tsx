@@ -9,6 +9,8 @@ import VehicleCreatePage from '@/pages/VehicleCreatePage';
 import AuctionsPage from '@/pages/AuctionsPage';
 import AuctionDetailPage from '@/pages/AuctionDetailPage';
 import DashboardPage from '@/pages/DashboardPage';
+import MyBidsPage from '@/pages/MyBidsPage';
+import WatchlistPage from '@/pages/WatchlistPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import { Toaster } from '@/components/ui/toaster';
 
@@ -43,6 +45,8 @@ function App() {
             <Route path="sign-in/*" element={<SignIn routing="path" path="/sign-in" />} />
             <Route path="sign-up/*" element={<SignUp routing="path" path="/sign-up" />} />
             <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="my-bids" element={<MyBidsPage />} />
+            <Route path="watchlist" element={<WatchlistPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
